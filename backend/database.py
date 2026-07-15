@@ -17,6 +17,15 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+
 def wait_for_db(max_retries=30, delay=2):
     for attempt in range(max_retries):
         try:
