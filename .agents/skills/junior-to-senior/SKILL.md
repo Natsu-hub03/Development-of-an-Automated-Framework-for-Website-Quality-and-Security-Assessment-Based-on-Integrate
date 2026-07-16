@@ -129,3 +129,4 @@ Deliver two artifacts, review first:
 - Never silently replace the junior plan — the user sees the review, the rewrite, and the delta, and decides.
 - If research contradicts the user's stated preference, present the evidence and defer; the user may have context the senior lacks.
 - A review with zero blockers and zero majors is a legitimate result. Say "this plan holds" and stop — do not manufacture findings to look rigorous.
+

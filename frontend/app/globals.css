@@ -513,6 +513,46 @@ body {
   color: var(--accent-start);
 }
 
+/* ===== Scan Type Selector ===== */
+.scan-type-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.scan-type-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.scan-type-btn:hover:not(:disabled) {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.scan-type-btn.active {
+  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+  border-color: transparent;
+  color: white;
+  font-weight: 600;
+  box-shadow: var(--shadow-glow);
+}
+
+.scan-type-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ===== Fade-in animation for page load ===== */
 .fade-in {
   animation: fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;

@@ -3,11 +3,23 @@ import { useState } from 'react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+type ScanType = 'wappalyzer' | 'zap' | 'both';
+
 export default function Home() {
   const [url, setUrl] = useState('');
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
+  const [scanType, setScanType] = useState<ScanType>('both');
+
+  const runScan = async (type: 'wappalyzer' | 'zap') => {
+    const res = await fetch(`${API_BASE_URL}/scan/${type}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    return res.json();
+  };
 
   const handleScan = async () => {
     if (!url) return;
@@ -15,15 +27,18 @@ export default function Home() {
     setResult(null);
     setScanStatus('scanning');
     try {
-      const res = await fetch(`${API_BASE_URL}/scan/wappalyzer`, {
-
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
+      let data: any;
+      if (scanType === 'both') {
+        const [wapResult, zapResult] = await Promise.all([
+          runScan('wappalyzer'),
+          runScan('zap'),
+        ]);
+        data = { wappalyzer: wapResult, zap: zapResult };
+      } else {
+        data = await runScan(scanType);
+      }
       setResult(data);
-      setScanStatus(data.error ? 'error' : 'done');
+      setScanStatus('done');
     } catch (err) {
       console.error(err);
       setResult({ error: 'ไม่สามารถเชื่อมต่อกับ Backend ได้ กรุณาตรวจสอบว่า Server กำลังทำงานอยู่' });
@@ -90,6 +105,22 @@ export default function Home() {
           <label htmlFor="url-input" className="scanner-label">
             กรอก URL ที่ต้องการสแกน
           </label>
+
+          {/* Scan Type Selector */}
+          <div className="scan-type-selector" id="scan-type-selector">
+            {(['wappalyzer', 'zap', 'both'] as ScanType[]).map((type) => (
+              <button
+                key={type}
+                className={`scan-type-btn ${scanType === type ? 'active' : ''}`}
+                onClick={() => setScanType(type)}
+                disabled={loading}
+              >
+                {type === 'wappalyzer' && '🛠️ Wappalyzer'}
+                {type === 'zap' && '⚡ ZAP Scan'}
+                {type === 'both' && '🔍 ทั้งหมด'}
+              </button>
+            ))}
+          </div>
 
           <div className="input-group">
             <input
