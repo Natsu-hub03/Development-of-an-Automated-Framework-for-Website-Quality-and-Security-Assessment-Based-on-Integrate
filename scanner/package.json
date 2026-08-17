@@ -11,6 +11,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "wappalyzer-rm": "^6.11.0"
+    "wappalyzer-rm": "^6.11.0",
+    "puppeteer": "^23.0.0",
+    "@axe-core/puppeteer": "^4.10.0",
+    "lighthouse": "^12.0.0",
+    "chrome-launcher": "^1.1.0"
   }
 }

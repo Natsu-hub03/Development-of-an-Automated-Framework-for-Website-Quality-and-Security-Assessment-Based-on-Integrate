@@ -25,8 +25,12 @@ services:
       ZAP_API_KEY: ${ZAP_API_KEY}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+    volumes:
+      - ./backend:/app
+      - ./scanner:/app/scanner
     ports:
       - "8000:8000"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
 
   frontend:
@@ -36,6 +40,11 @@ services:
       - backend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      WATCHPACK_POLLING: "true"  # จำเป็นสำหรับ hot-reload บน Docker Windows
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
     ports:
       - "3000:3000"
     restart: unless-stopped

@@ -37,7 +37,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ /app/
 COPY scanner/ /app/scanner/
-RUN npm install --prefix /app/scanner
+
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+RUN npm install --prefix /app/scanner && \
+    npx --prefix /app/scanner puppeteer browsers install chrome
 
 EXPOSE 8000
 

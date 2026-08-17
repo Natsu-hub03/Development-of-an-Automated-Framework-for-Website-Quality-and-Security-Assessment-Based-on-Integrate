@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from models import Base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:devpass@localhost:5432/potato_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:NT444@localhost:5432/potato_db")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)

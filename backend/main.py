@@ -18,9 +18,9 @@ from database import init_db, wait_for_db, get_db, engine
 from models import Scan, ScanResult
 
 # ── Config ────────────────────────────────────────────────────────────────────
-ZAP_BASE_URL   = os.getenv("ZAP_BASE_URL",   "http://zap:8080")
+ZAP_BASE_URL   = os.getenv("ZAP_BASE_URL",   "http://localhost:8080")
 ZAP_API_KEY    = os.getenv("ZAP_API_KEY",    "ZapK3yPr0ject2026Sec")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL",    "llama3.2:3b")
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -65,16 +65,22 @@ class AIAnalyzeRequest(BaseModel):
     scan_type: str = "both" # "wappalyzer" | "zap" | "both"
 
 
-# ── Helper: resolve scanner path ───────────────────────────────────────────────
-def _get_scanner_path() -> Path:
+
+
+# ── Helper: resolve scanner directory ──────────────────────────────────────────
+def _get_scanner_dir() -> Path:
     parent = Path(__file__).resolve().parent
-    candidate = parent / "scanner" / "wappalyzer_scan.js"
+    candidate = parent / "scanner"
     if candidate.exists():
         return candidate
-    fallback = parent.parent / "scanner" / "wappalyzer_scan.js"
+    fallback = parent.parent / "scanner"
     if fallback.exists():
         return fallback
-    raise FileNotFoundError("wappalyzer_scan.js not found")
+    raise FileNotFoundError("scanner directory not found")
+
+
+def _get_scanner_path() -> Path:
+    return _get_scanner_dir() / "wappalyzer_scan.js"
 
 
 # ── Wappalyzer scan ────────────────────────────────────────────────────────────
@@ -125,6 +131,122 @@ def scan_wappalyzer(request: ScanRequest, db: Session = Depends(get_db)):
         db.refresh(scan)
 
         scan_result = ScanResult(scan_id=scan.id, tool_name="wappalyzer", raw_data=data)
+        db.add(scan_result)
+        db.commit()
+
+        return {"success": True, "scan_id": scan.id, "data": data}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+
+
+# ── axe-core accessibility scan ────────────────────────────────────────────────
+@app.post("/scan/axe")
+def scan_axe(request: ScanRequest, db: Session = Depends(get_db)):
+    """Run axe-core accessibility scan via Puppeteer."""
+    url_str = str(request.url)
+
+    try:
+        scanner_dir = _get_scanner_dir()
+        script_path = scanner_dir / "axe_scan.js"
+        if not script_path.exists():
+            raise FileNotFoundError("axe_scan.js not found")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        proc = subprocess.run(
+            ["node", str(script_path), url_str],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=str(scanner_dir),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="axe-core scan timed out (>60s).")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to execute axe scanner: {e}")
+
+    raw_output = proc.stdout.strip()
+    try:
+        data = json.loads(raw_output)
+    except json.JSONDecodeError:
+        detail = f"Unexpected axe output: {raw_output[:300]}"
+        if proc.stderr:
+            detail += f" | stderr: {proc.stderr[:200]}"
+        raise HTTPException(status_code=500, detail=detail)
+
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=data.get("error", f"axe scan failed: {raw_output[:300]}")
+        )
+
+    try:
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(scan_id=scan.id, tool_name="axe", raw_data=data)
+        db.add(scan_result)
+        db.commit()
+
+        return {"success": True, "scan_id": scan.id, "data": data}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+
+
+# ── Lighthouse scan ────────────────────────────────────────────────────────────
+@app.post("/scan/lighthouse")
+def scan_lighthouse(request: ScanRequest, db: Session = Depends(get_db)):
+    """Run Lighthouse performance/a11y/SEO/best-practices audit."""
+    url_str = str(request.url)
+
+    try:
+        scanner_dir = _get_scanner_dir()
+        script_path = scanner_dir / "lighthouse_scan.js"
+        if not script_path.exists():
+            raise FileNotFoundError("lighthouse_scan.js not found")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        proc = subprocess.run(
+            ["node", str(script_path), url_str],
+            capture_output=True,
+            text=True,
+            timeout=90,
+            cwd=str(scanner_dir),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Lighthouse scan timed out (>90s).")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to execute Lighthouse: {e}")
+
+    raw_output = proc.stdout.strip()
+    try:
+        data = json.loads(raw_output)
+    except json.JSONDecodeError:
+        detail = f"Unexpected Lighthouse output: {raw_output[:300]}"
+        if proc.stderr:
+            detail += f" | stderr: {proc.stderr[:200]}"
+        raise HTTPException(status_code=500, detail=detail)
+
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=data.get("error", f"Lighthouse failed: {raw_output[:300]}")
+        )
+
+    try:
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(scan_id=scan.id, tool_name="lighthouse", raw_data=data)
         db.add(scan_result)
         db.commit()
 
