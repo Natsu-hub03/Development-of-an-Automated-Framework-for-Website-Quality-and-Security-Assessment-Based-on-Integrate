@@ -19,7 +19,6 @@ from typing import Any, Optional
 PASS = "pass"
 FAIL = "fail"
 WARNING = "warning"
-INFO = "info"
 
 # ── Weak cipher patterns ─────────────────────────────────────────────────────
 WEAK_CIPHERS = ["RC4", "DES", "3DES", "NULL", "EXPORT", "RC2", "IDEA", "SEED"]
@@ -70,7 +69,7 @@ def _make(check: dict, status: str, detail: str, source: str) -> dict:
 def _eval_axe(check: dict, axe_data: Optional[dict]) -> dict:
     """Evaluate WCAG check against axe-core violations/incomplete."""
     if not axe_data:
-        return _make(check, INFO, "ไม่มีข้อมูล axe-core", "axe-core")
+        return _make(check, WARNING, "ยังไม่ได้รัน axe-core scan", "axe-core")
 
     rules = check["rules"]
     violations = axe_data.get("violations", [])
@@ -104,7 +103,7 @@ def _eval_axe(check: dict, axe_data: Optional[dict]) -> dict:
 def _eval_lh(check: dict, lh_data: Optional[dict]) -> dict:
     """Evaluate check against Lighthouse failed audits."""
     if not lh_data:
-        return _make(check, INFO, "ไม่มีข้อมูล Lighthouse", "lighthouse")
+        return _make(check, WARNING, "ยังไม่ได้รัน Lighthouse scan", "lighthouse")
 
     audit_ids = check["rules"]
     failed_audits = lh_data.get("failed_audits", [])
@@ -134,7 +133,7 @@ def _eval_lh(check: dict, lh_data: Optional[dict]) -> dict:
 def _eval_header(check: dict, headers_data: Optional[dict]) -> dict:
     """Evaluate OWASP header check — presence + optional value validation."""
     if not headers_data:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
 
     header_key = check["header"]
     sec_headers = headers_data.get("security_headers", {})
@@ -219,7 +218,7 @@ def _v_cache(val):
 
 def _eval_https_redirect(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     is_https = hdr.get("is_https", False)
     redir = hdr.get("https_redirect", {})
 
@@ -238,7 +237,7 @@ def _eval_https_redirect(check, hdr, wap, zap):
 
 def _eval_ncsa_hsts(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     val = hdr.get("security_headers", {}).get("strict-transport-security")
     if not val:
         return _make(check, FAIL,
@@ -248,7 +247,7 @@ def _eval_ncsa_hsts(check, hdr, wap, zap):
 
 def _eval_ncsa_clickjack(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     h = hdr.get("security_headers", {})
     xfo = h.get("x-frame-options")
     csp = h.get("content-security-policy", "") or ""
@@ -292,7 +291,7 @@ def _eval_tls_version(check, hdr, wap, zap):
     tls_info = hdr.get("tls")
     if not tls_info or tls_info.get("error"):
         err = tls_info.get("error", "ไม่มีข้อมูล") if tls_info else "ไม่มีข้อมูล"
-        return _make(check, INFO,
+        return _make(check, WARNING,
                      f"ไม่สามารถตรวจ TLS: {err}", "headers-scan")
     proto = tls_info.get("protocol", "")
     if proto in ("TLSv1.3", "TLSv1.2"):
@@ -308,10 +307,10 @@ def _eval_tls_version(check, hdr, wap, zap):
 
 def _eval_cipher(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     tls_info = hdr.get("tls")
     if not tls_info or tls_info.get("error"):
-        return _make(check, INFO, "ไม่สามารถตรวจ Cipher Suite", "headers-scan")
+        return _make(check, WARNING, "ไม่สามารถตรวจ Cipher Suite", "headers-scan")
     cipher = (tls_info.get("cipher_name")
               or tls_info.get("cipher_standard_name", ""))
     if not cipher:
@@ -325,7 +324,7 @@ def _eval_cipher(check, hdr, wap, zap):
 
 def _eval_xss_sqli(check, hdr, wap, zap):
     if not zap:
-        return _make(check, INFO,
+        return _make(check, WARNING,
                      "ต้องรัน ZAP scan เพื่อตรวจ XSS/SQL Injection", "zap")
     alerts = zap.get("alerts", [])
     keywords = ["xss", "sql injection", "cross-site scripting", "injection"]
@@ -344,7 +343,7 @@ def _eval_xss_sqli(check, hdr, wap, zap):
 
 def _eval_cookie_security(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     cookie_info = hdr.get("cookies", {})
     if not cookie_info.get("has_cookies"):
         return _make(check, PASS,
@@ -370,7 +369,7 @@ def _eval_cookie_security(check, hdr, wap, zap):
 
 def _eval_fingerprinting(check, hdr, wap, zap):
     if not wap:
-        return _make(check, INFO, "ไม่มีข้อมูล Wappalyzer", "wappalyzer")
+        return _make(check, WARNING, "ยังไม่ได้รัน Wappalyzer scan", "wappalyzer")
     techs = wap.get("technologies", [])
     versioned = [t for t in techs if t.get("version")]
     if versioned:
@@ -384,7 +383,7 @@ def _eval_fingerprinting(check, hdr, wap, zap):
 
 def _eval_cve(check, hdr, wap, zap):
     if not wap:
-        return _make(check, INFO, "ไม่มีข้อมูล Wappalyzer", "wappalyzer")
+        return _make(check, WARNING, "ยังไม่ได้รัน Wappalyzer scan", "wappalyzer")
     techs = wap.get("technologies", [])
     versioned = [t for t in techs if t.get("version")]
     if versioned:
@@ -398,7 +397,7 @@ def _eval_cve(check, hdr, wap, zap):
 
 def _eval_admin_urls(check, hdr, wap, zap):
     if not zap:
-        return _make(check, INFO,
+        return _make(check, WARNING,
                      "ต้องรัน ZAP scan เพื่อตรวจ Admin URLs", "zap")
     alerts = zap.get("alerts", [])
     found = set()
@@ -418,7 +417,7 @@ def _eval_admin_urls(check, hdr, wap, zap):
 def _eval_set_cookie_owasp(check, hdr, wap, zap):
     """OWASP Set-Cookie — stricter than NCSA, includes Expires/Max-Age."""
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     cookie_info = hdr.get("cookies", {})
     if not cookie_info.get("has_cookies"):
         return _make(check, PASS, "ไม่พบ Set-Cookie header", "headers-scan")
@@ -896,7 +895,7 @@ def _evaluate_one(check, axe, lh, hdr, wap, zap):
         return _eval_header(check, hdr)
     if t == "custom":
         return CUSTOM_EVAL[check["eval_key"]](check, hdr, wap, zap)
-    return _make(check, INFO, "Unknown check type", "unknown")
+    return _make(check, WARNING, "Unknown check type", "unknown")
 
 
 def build_standards_report(
@@ -949,7 +948,6 @@ def build_standards_report(
         p = sum(1 for c in std_checks if c["status"] == PASS)
         f = sum(1 for c in std_checks if c["status"] == FAIL)
         w = sum(1 for c in std_checks if c["status"] == WARNING)
-        i = sum(1 for c in std_checks if c["status"] == INFO)
 
         standards.append({
             **meta,
@@ -957,14 +955,12 @@ def build_standards_report(
             "passed": p,
             "failed": f,
             "warning": w,
-            "info": i,
             "categories": categories,
         })
 
     total_p = sum(s["passed"] for s in standards)
     total_f = sum(s["failed"] for s in standards)
     total_w = sum(s["warning"] for s in standards)
-    total_i = sum(s["info"] for s in standards)
 
     return {
         "url": url,
@@ -974,7 +970,6 @@ def build_standards_report(
             "passed": total_p,
             "failed": total_f,
             "warning": total_w,
-            "info": total_i,
         },
         "standards": standards,
     }

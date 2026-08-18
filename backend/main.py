@@ -2,7 +2,9 @@ import json
 import os
 import subprocess
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from database import init_db, wait_for_db, get_db, engine
 from models import Scan, ScanResult
+from standards_mapping import build_standards_report
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ZAP_BASE_URL   = os.getenv("ZAP_BASE_URL",   "http://localhost:8080")
@@ -256,6 +259,64 @@ def scan_lighthouse(request: ScanRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
 
 
+# ── Headers scan ─────────────────────────────────────────────────────────────────
+@app.post("/scan/headers")
+def scan_headers(request: ScanRequest, db: Session = Depends(get_db)):
+    """Run headers/TLS/cookie security scan."""
+    url_str = str(request.url)
+
+    try:
+        scanner_dir = _get_scanner_dir()
+        script_path = scanner_dir / "headers_scan.js"
+        if not script_path.exists():
+            raise FileNotFoundError("headers_scan.js not found")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        proc = subprocess.run(
+            ["node", str(script_path), url_str],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=str(scanner_dir),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Headers scan timed out (>60s).")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to execute headers scanner: {e}")
+
+    raw_output = proc.stdout.strip()
+    try:
+        data = json.loads(raw_output)
+    except json.JSONDecodeError:
+        detail = f"Unexpected headers output: {raw_output[:300]}"
+        if proc.stderr:
+            detail += f" | stderr: {proc.stderr[:200]}"
+        raise HTTPException(status_code=500, detail=detail)
+
+    if proc.returncode != 0:
+        raise HTTPException(
+            status_code=502,
+            detail=data.get("error", f"Headers scan failed: {raw_output[:300]}")
+        )
+
+    try:
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(scan_id=scan.id, tool_name="headers", raw_data=data)
+        db.add(scan_result)
+        db.commit()
+
+        return {"success": True, "scan_id": scan.id, "data": data}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+
+
 # ── ZAP scan ───────────────────────────────────────────────────────────────────
 @app.post("/scan/zap")
 async def scan_zap(request: ScanRequest, db: Session = Depends(get_db)):
@@ -341,6 +402,145 @@ async def scan_zap(request: ScanRequest, db: Session = Depends(get_db)):
         db.commit()
 
         return {"success": True, "scan_id": scan.id, "data": result_data}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+
+
+# ── Standards scan (all tools combined) ─────────────────────────────────────────
+
+def _run_node_scanner(script_name: str, url: str, timeout: int = 120) -> dict | None:
+    """Run a Node.js scanner script and return parsed JSON, or None on failure."""
+    try:
+        scanner_dir = _get_scanner_dir()
+        script_path = scanner_dir / script_name
+        if not script_path.exists():
+            return None
+        proc = subprocess.run(
+            ["node", str(script_path), url],
+            capture_output=True, text=True, timeout=timeout,
+            cwd=str(scanner_dir),
+        )
+        if proc.returncode != 0:
+            return None
+        return json.loads(proc.stdout.strip())
+    except Exception:
+        return None
+
+
+async def _run_zap_scan(url: str) -> dict | None:
+    """Run ZAP spider + active scan. Returns result dict or None."""
+    params = {"apikey": ZAP_API_KEY}
+    try:
+        async with httpx.AsyncClient(base_url=ZAP_BASE_URL, timeout=30.0) as client:
+            # Access URL
+            try:
+                await client.get(
+                    "/JSON/core/action/accessUrl/",
+                    params={**params, "url": url, "followRedirects": "true"},
+                )
+            except httpx.RequestError:
+                return None
+
+            # Spider
+            resp = await client.get("/JSON/spider/action/scan/",
+                                    params={**params, "url": url})
+            spider_id = resp.json().get("scan")
+            if spider_id is None:
+                return None
+
+            for _ in range(60):
+                resp = await client.get("/JSON/spider/view/status/",
+                                        params={**params, "scanId": spider_id})
+                if int(resp.json().get("status", "0")) >= 100:
+                    break
+                await asyncio.sleep(2)
+
+            # Active scan
+            resp = await client.get("/JSON/ascan/action/scan/",
+                                    params={**params, "url": url})
+            ascan_id = resp.json().get("scan")
+            if ascan_id is None:
+                return None
+
+            for _ in range(100):
+                resp = await client.get("/JSON/ascan/view/status/",
+                                        params={**params, "scanId": ascan_id})
+                if int(resp.json().get("status", "0")) >= 100:
+                    break
+                await asyncio.sleep(3)
+
+            # Alerts
+            resp = await client.get("/JSON/alert/view/alerts/",
+                                    params={**params, "baseurl": url})
+            alerts = resp.json().get("alerts", [])
+
+            risk_summary = {"High": 0, "Medium": 0, "Low": 0, "Informational": 0}
+            for alert in alerts:
+                risk = alert.get("risk", "Informational")
+                risk_summary[risk] = risk_summary.get(risk, 0) + 1
+
+            return {
+                "url": url,
+                "total_alerts": len(alerts),
+                "risk_summary": risk_summary,
+                "alerts": alerts,
+            }
+    except Exception:
+        return None
+
+
+@app.post("/scan/standards")
+async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
+    """Run all scanners and produce the 68-item standards compliance report."""
+    url_str = str(request.url)
+    loop = asyncio.get_event_loop()
+    executor = ThreadPoolExecutor(max_workers=4)
+
+    # Run Node.js scanners in thread pool + ZAP async concurrently
+    axe_future = loop.run_in_executor(
+        executor, partial(_run_node_scanner, "axe_scan.js", url_str, 90))
+    lh_future = loop.run_in_executor(
+        executor, partial(_run_node_scanner, "lighthouse_scan.js", url_str, 120))
+    hdr_future = loop.run_in_executor(
+        executor, partial(_run_node_scanner, "headers_scan.js", url_str, 60))
+    wap_future = loop.run_in_executor(
+        executor, partial(_run_node_scanner, "wappalyzer_scan.js", url_str, 120))
+    zap_task = asyncio.create_task(_run_zap_scan(url_str))
+
+    # Await all
+    axe_data, lh_data, hdr_data, wap_data, zap_data = await asyncio.gather(
+        axe_future, lh_future, hdr_future, wap_future, zap_task
+    )
+
+    # Build report
+    report = build_standards_report(
+        url=url_str,
+        axe_data=axe_data,
+        lighthouse_data=lh_data,
+        headers_data=hdr_data,
+        wappalyzer_data=wap_data,
+        zap_data=zap_data,
+    )
+
+    # Include raw wappalyzer data for tech table
+    report["wappalyzer_technologies"] = (
+        wap_data.get("technologies", []) if isinstance(wap_data, dict) else []
+    )
+
+    # Persist
+    try:
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(
+            scan_id=scan.id, tool_name="standards", raw_data=report)
+        db.add(scan_result)
+        db.commit()
+
+        return {"success": True, "scan_id": scan.id, "data": report}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database write failed: {e}")

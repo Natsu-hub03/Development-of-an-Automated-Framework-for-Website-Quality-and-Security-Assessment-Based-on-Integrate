@@ -1566,3 +1566,504 @@ p, li, dd, blockquote {
     flex-wrap: wrap;
   }
 }
+
+/* ============================================================
+   Standards Report Styles
+   ============================================================ */
+
+.standards-report {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* --- Summary Bar --- */
+.standards-summary {
+  background: var(--bg-card);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.standards-summary-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.standards-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  text-align: center;
+  padding: 16px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-dim);
+  background: var(--bg-surface);
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.stat-total .stat-value { color: var(--text-primary); }
+.stat-pass .stat-value  { color: var(--success); }
+.stat-fail .stat-value  { color: var(--error); }
+.stat-warn .stat-value  { color: var(--warning); }
+
+/* --- Standard Cards (Accordion) --- */
+.standards-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.standard-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.standard-card:hover,
+.standard-card.expanded {
+  border-color: var(--border-base);
+}
+
+.standard-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px 20px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  gap: 12px;
+}
+
+.standard-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.standard-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-dim);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.standard-card-info {
+  text-align: left;
+}
+
+.standard-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.standard-card-owner {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.standard-card-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.standard-card-counts {
+  display: flex;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.count-pass { color: var(--success); }
+.count-fail { color: var(--error); }
+.count-warn { color: var(--warning); }
+
+.standard-progress-bar {
+  width: 80px;
+  height: 6px;
+  background: var(--bg-surface);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.standard-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), #00cc90);
+  border-radius: var(--radius-pill);
+  transition: width 0.5s ease;
+}
+
+.standard-progress-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 32px;
+  text-align: right;
+}
+
+.standard-expand-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.standard-expand-icon.rotated {
+  transform: rotate(180deg);
+}
+
+/* --- Card Body (Checklist) --- */
+.standard-card-body {
+  border-top: 1px solid var(--border-dim);
+  padding: 16px 20px;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.checklist-category {
+  margin-bottom: 16px;
+}
+
+.checklist-category:last-child {
+  margin-bottom: 0;
+}
+
+.checklist-category-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.checklist-item:hover {
+  border-color: var(--border-dim);
+}
+
+.checklist-item.status-fail {
+  border-left: 3px solid var(--error);
+}
+
+.checklist-item.status-warning {
+  border-left: 3px solid var(--warning);
+}
+
+.checklist-item.status-pass {
+  border-left: 3px solid var(--success);
+}
+
+.checklist-status-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.checklist-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.checklist-item-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-item-id {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.checklist-item-name-th {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.checklist-item-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  word-break: break-word;
+}
+
+.checklist-status-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.checklist-status-badge.status-pass {
+  background: rgba(0, 255, 180, 0.12);
+  color: var(--success);
+}
+
+.checklist-status-badge.status-fail {
+  background: rgba(255, 77, 109, 0.12);
+  color: var(--error);
+}
+
+.checklist-status-badge.status-warning {
+  background: rgba(255, 209, 102, 0.12);
+  color: var(--warning);
+}
+
+/* ============================================================
+   Wappalyzer Table Styles
+   ============================================================ */
+
+.wap-table-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.wap-table-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.wap-table-icon {
+  font-size: 18px;
+}
+
+.wap-table-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.wap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wap-table thead th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-dim);
+  font-weight: 500;
+}
+
+.wap-table thead th:first-child {
+  width: 48px;
+  padding-left: 20px;
+}
+
+.wap-row-even { background: var(--bg-card); }
+.wap-row-odd  { background: var(--bg-surface); }
+
+.wap-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.wap-table tbody tr:hover {
+  background: var(--bg-card-hover);
+}
+
+.wap-icon-cell {
+  padding: 10px 8px 10px 20px;
+  width: 48px;
+}
+
+.wap-icon-wrapper {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 180, 255, 0.08);
+  overflow: hidden;
+}
+
+.wap-tech-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.wap-tech-fallback {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent2);
+}
+
+.wap-tech-fallback.hidden {
+  display: none;
+}
+
+.wap-name-cell {
+  padding: 10px 16px;
+  color: var(--text-primary);
+}
+
+.wap-tech-name {
+  font-weight: 500;
+}
+
+.wap-tech-version {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.wap-cat-cell {
+  padding: 10px 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* --- Pagination --- */
+.wap-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-dim);
+}
+
+.wap-page-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-base);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.wap-page-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+}
+
+.wap-page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.wap-page-info {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* --- Responsive --- */
+@media (max-width: 600px) {
+  .standards-summary-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .standard-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .standard-card-right {
+    width: 100%;
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+
+  .checklist-item {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .checklist-status-badge {
+    align-self: flex-start;
+  }
+
+  .wap-cat-cell {
+    display: none;
+  }
+}
