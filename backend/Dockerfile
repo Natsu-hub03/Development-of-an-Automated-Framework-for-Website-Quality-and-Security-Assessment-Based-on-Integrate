@@ -38,9 +38,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/
 COPY scanner/ /app/scanner/
 
-ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
+ENV PUPPETEER_CACHE_DIR=/opt/puppeteer
 RUN npm install --prefix /app/scanner && \
     npx --prefix /app/scanner puppeteer browsers install chrome
+
+# Symlink Puppeteer's Chrome so chrome-launcher (Lighthouse) can find it
+RUN CHROME_BIN=$(find /opt/puppeteer -name chrome -type f | head -1) && \
+    ln -sf "$CHROME_BIN" /usr/local/bin/chrome
+ENV CHROME_PATH=/usr/local/bin/chrome
 
 EXPOSE 8000
 
