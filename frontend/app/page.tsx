@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ScanType = 'standards' | 'wappalyzer' | 'zap' | 'axe' | 'lighthouse';
+type ScanType = 'standards' | 'wcag' | 'cwv' | 'ncsa' | 'owasp';
 
 const RISK_CONFIG: Record<string, { label: string; cls: string }> = {
   High:          { label: 'HIGH', cls: 'risk-high' },
@@ -503,12 +503,18 @@ export default function Home() {
   const [loading, setLoading]       = useState(false);
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
   const [scanType, setScanType]     = useState<ScanType>('standards');
+
+  const getScanPath = (type: ScanType) => {
+    if (type === 'standards') return '/scan/standards';
+    return `/scan/standard/${type}`;
+  };
   const [aiResult, setAiResult]     = useState<string | null>(null);
   const [aiLoading, setAiLoading]   = useState(false);
   const [aiError, setAiError]       = useState<string | null>(null);
 
-  const runScan = async (type: string) => {
-    const res = await fetch(`${API_BASE_URL}/scan/${type}`, {
+  const runScan = async (type: ScanType) => {
+    const path = getScanPath(type);
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
@@ -567,6 +573,8 @@ export default function Home() {
       case 'idle':     return '> READY';
       case 'scanning': return scanType === 'standards'
         ? '> SCANNING ALL STANDARDS (this may take a few minutes)...'
+        : scanType === 'ncsa'
+        ? '> SCANNING สกมช. (ZAP may take a few minutes)...'
         : '> SCANNING...';
       case 'done':     return '> SCAN COMPLETE';
       case 'error':    return '> ERROR';
@@ -641,7 +649,7 @@ export default function Home() {
             </label>
 
             <div className="scan-type-selector" id="scan-type-selector" role="group" aria-label="Scan type">
-              {(['standards', 'wappalyzer', 'zap', 'axe', 'lighthouse'] as ScanType[]).map((type) => (
+              {(['standards', 'wcag', 'cwv', 'ncsa', 'owasp'] as ScanType[]).map((type) => (
                 <button
                   key={type}
                   id={`scan-type-${type}`}
@@ -650,11 +658,11 @@ export default function Home() {
                   disabled={loading}
                   aria-pressed={scanType === type}
                 >
-                  {type === 'standards'    && '📋 STANDARDS'}
-                  {type === 'wappalyzer'   && '🛠 WAPPALYZER'}
-                  {type === 'zap'          && '⚡ ZAP SCAN'}
-                  {type === 'axe'          && '♿ AXE A11Y'}
-                  {type === 'lighthouse'   && '📊 LIGHTHOUSE'}
+                  {type === 'standards'    && '📋 ทั้งหมด (68 ข้อ)'}
+                  {type === 'wcag'          && '♿ WCAG (37 ข้อ)'}
+                  {type === 'cwv'           && '📊 Web Vitals & SEO (9 ข้อ)'}
+                  {type === 'ncsa'          && '🛡️ สกมช. (11 ข้อ)'}
+                  {type === 'owasp'         && '🔒 OWASP Headers (11 ข้อ)'}
                 </button>
               ))}
             </div>
@@ -704,11 +712,7 @@ export default function Home() {
                 </div>
 
                 <div className="results-panels">
-                  {scanType === 'standards' && <StandardsReportPanel data={result} />}
-                  {scanType === 'wappalyzer' && <WappalyzerPanel data={result} />}
-                  {scanType === 'zap' && <ZapPanel data={result} />}
-                  {scanType === 'axe' && <AxePanel data={result} />}
-                  {scanType === 'lighthouse' && <LighthousePanel data={result} />}
+                  <StandardsReportPanel data={result} />
                 </div>
 
                 {/* AI Analysis Button */}

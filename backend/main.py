@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from database import init_db, wait_for_db, get_db, engine
 from models import Scan, ScanResult
-from standards_mapping import build_standards_report
+from standards_mapping import build_standards_report, build_single_standard_report, STANDARD_TOOLS, VALID_STANDARD_IDS
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ZAP_BASE_URL   = os.getenv("ZAP_BASE_URL",   "http://localhost:8080")
@@ -537,6 +537,108 @@ async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
 
         scan_result = ScanResult(
             scan_id=scan.id, tool_name="standards", raw_data=report)
+        db.add(scan_result)
+        db.commit()
+
+        return {"success": True, "scan_id": scan.id, "data": report}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+
+
+# ── Per-standard scan ──────────────────────────────────────────────────────────
+
+STANDARD_LABELS = {
+    "wcag": "WCAG 2.1",
+    "cwv": "Core Web Vitals & SEO",
+    "ncsa": "สกมช.",
+    "owasp": "OWASP Headers",
+}
+
+@app.post("/scan/standard/{standard_id}")
+async def scan_single_standard(standard_id: str, request: ScanRequest, db: Session = Depends(get_db)):
+    """Run only the tools needed for a specific standard and return its checklist report."""
+    if standard_id not in VALID_STANDARD_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown standard: {standard_id}. Valid: {', '.join(sorted(VALID_STANDARD_IDS))}"
+        )
+
+    url_str = str(request.url)
+    tools_needed = STANDARD_TOOLS[standard_id]
+
+    loop = asyncio.get_event_loop()
+    executor = ThreadPoolExecutor(max_workers=4)
+
+    # Run only the tools this standard requires
+    axe_data = lh_data = hdr_data = wap_data = zap_data = None
+
+    futures = []
+    future_keys = []
+
+    if "axe" in tools_needed:
+        futures.append(loop.run_in_executor(
+            executor, partial(_run_node_scanner, "axe_scan.js", url_str, 90)))
+        future_keys.append("axe")
+
+    if "lighthouse" in tools_needed:
+        futures.append(loop.run_in_executor(
+            executor, partial(_run_node_scanner, "lighthouse_scan.js", url_str, 120)))
+        future_keys.append("lighthouse")
+
+    if "headers" in tools_needed:
+        futures.append(loop.run_in_executor(
+            executor, partial(_run_node_scanner, "headers_scan.js", url_str, 60)))
+        future_keys.append("headers")
+
+    if "wappalyzer" in tools_needed:
+        futures.append(loop.run_in_executor(
+            executor, partial(_run_node_scanner, "wappalyzer_scan.js", url_str, 120)))
+        future_keys.append("wappalyzer")
+
+    if "zap" in tools_needed:
+        futures.append(asyncio.create_task(_run_zap_scan(url_str)))
+        future_keys.append("zap")
+
+    results = await asyncio.gather(*futures)
+
+    # Map results back
+    result_map = dict(zip(future_keys, results))
+    axe_data = result_map.get("axe")
+    lh_data = result_map.get("lighthouse")
+    hdr_data = result_map.get("headers")
+    wap_data = result_map.get("wappalyzer")
+    zap_data = result_map.get("zap")
+
+    # Build single-standard report
+    report = build_single_standard_report(
+        standard_id=standard_id,
+        url=url_str,
+        axe_data=axe_data,
+        lighthouse_data=lh_data,
+        headers_data=hdr_data,
+        wappalyzer_data=wap_data,
+        zap_data=zap_data,
+    )
+
+    # Include raw wappalyzer data for tech table (relevant for ncsa)
+    if wap_data and isinstance(wap_data, dict):
+        report["wappalyzer_technologies"] = wap_data.get("technologies", [])
+    else:
+        report["wappalyzer_technologies"] = []
+
+    # Persist
+    try:
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(
+            scan_id=scan.id,
+            tool_name=f"standard_{standard_id}",
+            raw_data=report,
+        )
         db.add(scan_result)
         db.commit()
 

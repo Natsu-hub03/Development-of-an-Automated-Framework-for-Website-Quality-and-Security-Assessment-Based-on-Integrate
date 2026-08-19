@@ -898,30 +898,25 @@ def _evaluate_one(check, axe, lh, hdr, wap, zap):
     return _make(check, WARNING, "Unknown check type", "unknown")
 
 
-def build_standards_report(
-    url: str,
-    axe_data: Any = None,
-    lighthouse_data: Any = None,
-    headers_data: Any = None,
-    wappalyzer_data: Any = None,
-    zap_data: Any = None,
-) -> dict:
-    """Build the complete 68-item standards compliance report."""
+# ── Which tools each standard needs ──────────────────────────────────────────
+STANDARD_TOOLS: dict[str, list[str]] = {
+    "wcag":  ["axe"],
+    "cwv":   ["lighthouse"],
+    "ncsa":  ["headers", "wappalyzer", "zap"],
+    "owasp": ["headers"],
+}
 
-    # Normalize — unwrap API response envelopes
-    axe = _extract(axe_data)
-    lh = _extract(lighthouse_data)
-    hdr = _extract(headers_data)
-    wap = _extract(wappalyzer_data)
-    zap = _extract(zap_data)
+VALID_STANDARD_IDS = set(STANDARD_TOOLS.keys())
 
-    # Evaluate every check
-    results = [_evaluate_one(c, axe, lh, hdr, wap, zap) for c in CHECKS]
 
-    # Group by standard → category (preserving order from CHECKS)
+def _build_standards_list(results: list[dict], standard_ids: list[str] | None = None):
+    """Group evaluated results into standard → category structure.
+    If standard_ids is given, only include those standards."""
     standards = []
     for meta in STANDARDS_META:
         std_id = meta["id"]
+        if standard_ids and std_id not in standard_ids:
+            continue
         std_checks = [r for r in results if r["standard"] == std_id]
 
         seen_cats: list[str] = []
@@ -957,6 +952,31 @@ def build_standards_report(
             "warning": w,
             "categories": categories,
         })
+    return standards
+
+
+def build_standards_report(
+    url: str,
+    axe_data: Any = None,
+    lighthouse_data: Any = None,
+    headers_data: Any = None,
+    wappalyzer_data: Any = None,
+    zap_data: Any = None,
+) -> dict:
+    """Build the complete 68-item standards compliance report."""
+
+    # Normalize — unwrap API response envelopes
+    axe = _extract(axe_data)
+    lh = _extract(lighthouse_data)
+    hdr = _extract(headers_data)
+    wap = _extract(wappalyzer_data)
+    zap = _extract(zap_data)
+
+    # Evaluate every check
+    results = [_evaluate_one(c, axe, lh, hdr, wap, zap) for c in CHECKS]
+
+    # Group by standard → category (preserving order from CHECKS)
+    standards = _build_standards_list(results)
 
     total_p = sum(s["passed"] for s in standards)
     total_f = sum(s["failed"] for s in standards)
@@ -967,6 +987,48 @@ def build_standards_report(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "total": 68,
+            "passed": total_p,
+            "failed": total_f,
+            "warning": total_w,
+        },
+        "standards": standards,
+    }
+
+
+def build_single_standard_report(
+    standard_id: str,
+    url: str,
+    axe_data: Any = None,
+    lighthouse_data: Any = None,
+    headers_data: Any = None,
+    wappalyzer_data: Any = None,
+    zap_data: Any = None,
+) -> dict:
+    """Build a standards compliance report for a single standard only."""
+
+    # Normalize
+    axe = _extract(axe_data)
+    lh = _extract(lighthouse_data)
+    hdr = _extract(headers_data)
+    wap = _extract(wappalyzer_data)
+    zap = _extract(zap_data)
+
+    # Only evaluate checks for this standard
+    filtered_checks = [c for c in CHECKS if c["standard"] == standard_id]
+    results = [_evaluate_one(c, axe, lh, hdr, wap, zap) for c in filtered_checks]
+
+    standards = _build_standards_list(results, [standard_id])
+
+    total_p = sum(s["passed"] for s in standards)
+    total_f = sum(s["failed"] for s in standards)
+    total_w = sum(s["warning"] for s in standards)
+    total_items = sum(s["total"] for s in standards)
+
+    return {
+        "url": url,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "summary": {
+            "total": total_items,
             "passed": total_p,
             "failed": total_f,
             "warning": total_w,
