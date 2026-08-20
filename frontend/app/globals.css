@@ -473,6 +473,22 @@ p, li, dd, blockquote {
   cursor: not-allowed;
 }
 
+.scan-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--bg-base);
+  font-size: 9px;
+  font-weight: 800;
+  margin-left: 6px;
+  box-shadow: 0 0 6px rgba(0, 255, 180, 0.5);
+  vertical-align: middle;
+}
+
 /* ===== Input Group ===== */
 .input-group {
   display: flex;

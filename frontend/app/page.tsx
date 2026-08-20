@@ -498,26 +498,44 @@ function ZapPanel({ data }: { data: any }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+type ScanResultsMap = Partial<Record<ScanType, any>>;
+
 export default function Home() {
-  const [url, setUrl]               = useState('');
-  const [result, setResult]         = useState<any>(null);
-  const [loading, setLoading]       = useState(false);
-  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
-  const [scanType, setScanType]     = useState<ScanType>('standards');
-  const [aiResult, setAiResult]     = useState<string | null>(null);
-  const [aiLoading, setAiLoading]   = useState(false);
-  const [aiError, setAiError]       = useState<string | null>(null);
+  const [url, setUrl]                     = useState('');
+  const [result, setResult]               = useState<any>(null);
+  const [loading, setLoading]             = useState(false);
+  const [scanStatus, setScanStatus]       = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
+  const [scanType, setScanType]           = useState<ScanType>('standards');
+  const [resultsByType, setResultsByType] = useState<ScanResultsMap>({});
+  const [aiResult, setAiResult]           = useState<string | null>(null);
+  const [aiLoading, setAiLoading]         = useState(false);
+  const [aiError, setAiError]             = useState<string | null>(null);
 
   // Restore state from localStorage if available
   useEffect(() => {
     try {
+      const savedMap = localStorage.getItem('webscan_results_by_type');
+      let map: ScanResultsMap = {};
+      if (savedMap) {
+        map = JSON.parse(savedMap);
+        setResultsByType(map);
+      }
+
       const saved = localStorage.getItem('webscan_state');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.url) setUrl(parsed.url);
-        if (parsed.scanType) setScanType(parsed.scanType);
-        if (parsed.result) {
-          setResult(parsed.result);
+        const activeType = (parsed.scanType as ScanType) || 'standards';
+        setScanType(activeType);
+
+        if (parsed.resultsByType) {
+          map = { ...map, ...parsed.resultsByType };
+          setResultsByType(map);
+        }
+
+        const res = map[activeType] || parsed.result;
+        if (res) {
+          setResult(res);
           setScanStatus('done');
         }
         if (parsed.aiResult) setAiResult(parsed.aiResult);
@@ -542,6 +560,20 @@ export default function Home() {
     return `/scan/standard/${type}`;
   };
 
+  const handleSelectScanType = (type: ScanType) => {
+    setScanType(type);
+    const existing = resultsByType[type];
+    if (existing) {
+      setResult(existing);
+      setScanStatus('done');
+    } else {
+      setResult(null);
+      setScanStatus('idle');
+    }
+    setAiResult(null);
+    setAiError(null);
+  };
+
   const runScan = async (type: ScanType) => {
     const path = getScanPath(type);
     const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -563,12 +595,20 @@ export default function Home() {
       const data = await runScan(scanType);
       setResult(data);
       setScanStatus('done');
+
+      const updatedMap: ScanResultsMap = {
+        ...resultsByType,
+        [scanType]: data,
+      };
+      setResultsByType(updatedMap);
+
       // Save to localStorage for dashboard & session retention
       try {
+        localStorage.setItem('webscan_results_by_type', JSON.stringify(updatedMap));
         localStorage.setItem('webscan_dashboard_data', JSON.stringify(data));
         localStorage.setItem(
           'webscan_state',
-          JSON.stringify({ url, scanType, result: data, aiResult: null })
+          JSON.stringify({ url, scanType, resultsByType: updatedMap, result: data, aiResult: null })
         );
       } catch { /* ignore quota errors */ }
     } catch (err) {
@@ -598,7 +638,7 @@ export default function Home() {
         try {
           localStorage.setItem(
             'webscan_state',
-            JSON.stringify({ url, scanType, result, aiResult: data.analysis })
+            JSON.stringify({ url, scanType, resultsByType, result, aiResult: data.analysis })
           );
         } catch {}
       }
@@ -614,9 +654,11 @@ export default function Home() {
     setAiResult(null);
     setAiError(null);
     setScanStatus('idle');
+    setResultsByType({});
     try {
       localStorage.removeItem('webscan_state');
       localStorage.removeItem('webscan_dashboard_data');
+      localStorage.removeItem('webscan_results_by_type');
     } catch {}
   };
 
@@ -705,22 +747,26 @@ export default function Home() {
             </label>
 
             <div className="scan-type-selector" id="scan-type-selector" role="group" aria-label="Scan type">
-              {(['standards', 'wcag', 'cwv', 'ncsa', 'owasp'] as ScanType[]).map((type) => (
-                <button
-                  key={type}
-                  id={`scan-type-${type}`}
-                  className={`scan-type-btn ${scanType === type ? 'active' : ''}`}
-                  onClick={() => setScanType(type)}
-                  disabled={loading}
-                  aria-pressed={scanType === type}
-                >
-                  {type === 'standards'    && '📋 ทั้งหมด (68 ข้อ)'}
-                  {type === 'wcag'          && '♿ WCAG (37 ข้อ)'}
-                  {type === 'cwv'           && '📊 Web Vitals & SEO (9 ข้อ)'}
-                  {type === 'ncsa'          && '🛡️ สกมช. (11 ข้อ)'}
-                  {type === 'owasp'         && '🔒 OWASP Headers (11 ข้อ)'}
-                </button>
-              ))}
+              {(['standards', 'wcag', 'cwv', 'ncsa', 'owasp'] as ScanType[]).map((type) => {
+                const hasResult = !!resultsByType[type];
+                return (
+                  <button
+                    key={type}
+                    id={`scan-type-${type}`}
+                    className={`scan-type-btn ${scanType === type ? 'active' : ''}`}
+                    onClick={() => handleSelectScanType(type)}
+                    disabled={loading}
+                    aria-pressed={scanType === type}
+                  >
+                    {type === 'standards'    && '📋 ทั้งหมด (68 ข้อ)'}
+                    {type === 'wcag'          && '♿ WCAG (37 ข้อ)'}
+                    {type === 'cwv'           && '📊 Web Vitals & SEO (9 ข้อ)'}
+                    {type === 'ncsa'          && '🛡️ สกมช. (11 ข้อ)'}
+                    {type === 'owasp'         && '🔒 OWASP Headers (11 ข้อ)'}
+                    {hasResult && <span className="scan-tab-badge" title="มีผลสแกนแล้ว">✓</span>}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="input-group">

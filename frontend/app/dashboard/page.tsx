@@ -31,6 +31,67 @@ function extractChecks(standards: any[], status: string) {
   return items;
 }
 
+function combineScanResults(resultsByType: Record<string, any>, currentDashboardData: any) {
+  if (!resultsByType || Object.keys(resultsByType).length === 0) {
+    return currentDashboardData;
+  }
+
+  // If full 'standards' scan exists, use that directly
+  if (resultsByType['standards']) {
+    return resultsByType['standards'];
+  }
+
+  // Otherwise, combine all individual scans
+  const stdKeys = ['wcag', 'cwv', 'ncsa', 'owasp'];
+  const standardsList: any[] = [];
+  const seenStdIds = new Set<string>();
+  let totalP = 0;
+  let totalF = 0;
+  let totalW = 0;
+  let totalItems = 0;
+  let allTechs: any[] = [];
+  let url = '';
+  let timestamp = '';
+
+  for (const k of stdKeys) {
+    const raw = resultsByType[k];
+    if (!raw) continue;
+    const rData = raw.data ?? raw;
+    if (rData.url) url = rData.url;
+    if (rData.timestamp) timestamp = rData.timestamp;
+    if (rData.wappalyzer_technologies?.length) {
+      allTechs = [...allTechs, ...rData.wappalyzer_technologies];
+    }
+    for (const std of (rData.standards ?? [])) {
+      if (!seenStdIds.has(std.id)) {
+        seenStdIds.add(std.id);
+        standardsList.push(std);
+        totalP += std.passed ?? 0;
+        totalF += std.failed ?? 0;
+        totalW += std.warning ?? 0;
+        totalItems += std.total ?? 0;
+      }
+    }
+  }
+
+  if (standardsList.length > 0) {
+    return {
+      url: url || (currentDashboardData?.data ?? currentDashboardData)?.url || '',
+      timestamp: timestamp || (currentDashboardData?.data ?? currentDashboardData)?.timestamp || '',
+      summary: {
+        total: totalItems,
+        passed: totalP,
+        failed: totalF,
+        warning: totalW,
+      },
+      standards: standardsList,
+      wappalyzer_technologies: allTechs,
+    };
+  }
+
+  return currentDashboardData;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
@@ -38,9 +99,15 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
     try {
-      const raw = localStorage.getItem('webscan_dashboard_data');
-      if (raw) {
-        setData(JSON.parse(raw));
+      const rawMap = localStorage.getItem('webscan_results_by_type');
+      const rawDashboard = localStorage.getItem('webscan_dashboard_data');
+      
+      const map = rawMap ? JSON.parse(rawMap) : {};
+      const dashboardData = rawDashboard ? JSON.parse(rawDashboard) : null;
+      
+      const combined = combineScanResults(map, dashboardData);
+      if (combined) {
+        setData(combined);
       }
     } catch {
       // ignore parse errors
