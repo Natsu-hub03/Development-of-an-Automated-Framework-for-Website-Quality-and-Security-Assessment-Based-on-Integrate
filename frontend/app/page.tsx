@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -503,14 +504,43 @@ export default function Home() {
   const [loading, setLoading]       = useState(false);
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
   const [scanType, setScanType]     = useState<ScanType>('standards');
+  const [aiResult, setAiResult]     = useState<string | null>(null);
+  const [aiLoading, setAiLoading]   = useState(false);
+  const [aiError, setAiError]       = useState<string | null>(null);
+
+  // Restore state from localStorage if available
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('webscan_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.url) setUrl(parsed.url);
+        if (parsed.scanType) setScanType(parsed.scanType);
+        if (parsed.result) {
+          setResult(parsed.result);
+          setScanStatus('done');
+        }
+        if (parsed.aiResult) setAiResult(parsed.aiResult);
+      } else {
+        const legacyData = localStorage.getItem('webscan_dashboard_data');
+        if (legacyData) {
+          const parsed = JSON.parse(legacyData);
+          setResult(parsed);
+          setScanStatus('done');
+          if (parsed.url || parsed.data?.url) {
+            setUrl(parsed.url || parsed.data?.url);
+          }
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
 
   const getScanPath = (type: ScanType) => {
     if (type === 'standards') return '/scan/standards';
     return `/scan/standard/${type}`;
   };
-  const [aiResult, setAiResult]     = useState<string | null>(null);
-  const [aiLoading, setAiLoading]   = useState(false);
-  const [aiError, setAiError]       = useState<string | null>(null);
 
   const runScan = async (type: ScanType) => {
     const path = getScanPath(type);
@@ -533,6 +563,14 @@ export default function Home() {
       const data = await runScan(scanType);
       setResult(data);
       setScanStatus('done');
+      // Save to localStorage for dashboard & session retention
+      try {
+        localStorage.setItem('webscan_dashboard_data', JSON.stringify(data));
+        localStorage.setItem(
+          'webscan_state',
+          JSON.stringify({ url, scanType, result: data, aiResult: null })
+        );
+      } catch { /* ignore quota errors */ }
     } catch (err) {
       console.error(err);
       setResult({ error: 'ไม่สามารถเชื่อมต่อกับ Backend ได้ กรุณาตรวจสอบว่า Server กำลังทำงานอยู่' });
@@ -557,11 +595,29 @@ export default function Home() {
         setAiError(data.detail || data.error || 'AI analysis failed');
       } else {
         setAiResult(data.analysis);
+        try {
+          localStorage.setItem(
+            'webscan_state',
+            JSON.stringify({ url, scanType, result, aiResult: data.analysis })
+          );
+        } catch {}
       }
     } catch {
       setAiError('ไม่สามารถเชื่อมต่อกับ AI service ได้');
     }
     setAiLoading(false);
+  };
+
+  const handleReset = () => {
+    setUrl('');
+    setResult(null);
+    setAiResult(null);
+    setAiError(null);
+    setScanStatus('idle');
+    try {
+      localStorage.removeItem('webscan_state');
+      localStorage.removeItem('webscan_dashboard_data');
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -709,14 +765,30 @@ export default function Home() {
               <div className="results-wrapper" id="scan-results">
                 <div className="results-header">
                   <span className="results-title">// OUTPUT</span>
+                  <button
+                    onClick={handleReset}
+                    className="dash-action-btn"
+                    style={{ fontSize: '10px', padding: '4px 10px', minHeight: 'auto' }}
+                    title="ล้างผลการสแกนและเริ่มใหม่"
+                  >
+                    ✕ CLEAR / ล้างผล
+                  </button>
                 </div>
 
                 <div className="results-panels">
                   <StandardsReportPanel data={result} />
                 </div>
 
-                {/* AI Analysis Button */}
+                {/* Dashboard + AI buttons */}
                 <div className="ai-trigger-row">
+                  <Link
+                    href="/dashboard"
+                    id="view-dashboard-button"
+                    className="scan-btn"
+                    style={{ textDecoration: 'none', fontSize: '13px', padding: '11px 22px' }}
+                  >
+                    📊 VIEW DASHBOARD
+                  </Link>
                   <button
                     id="ai-analyze-button"
                     className="ai-btn"
