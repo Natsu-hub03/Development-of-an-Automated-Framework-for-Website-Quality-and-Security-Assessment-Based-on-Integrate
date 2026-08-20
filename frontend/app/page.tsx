@@ -502,6 +502,7 @@ type ScanResultsMap = Partial<Record<ScanType, any>>;
 
 export default function Home() {
   const [url, setUrl]                     = useState('');
+  const [lastScannedUrl, setLastScannedUrl] = useState<string>('');
   const [result, setResult]               = useState<any>(null);
   const [loading, setLoading]             = useState(false);
   const [scanStatus, setScanStatus]       = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
@@ -524,7 +525,10 @@ export default function Home() {
       const saved = localStorage.getItem('webscan_state');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.url) setUrl(parsed.url);
+        if (parsed.url) {
+          setUrl(parsed.url);
+          setLastScannedUrl(parsed.lastScannedUrl || parsed.url);
+        }
         const activeType = (parsed.scanType as ScanType) || 'standards';
         setScanType(activeType);
 
@@ -545,8 +549,10 @@ export default function Home() {
           const parsed = JSON.parse(legacyData);
           setResult(parsed);
           setScanStatus('done');
-          if (parsed.url || parsed.data?.url) {
-            setUrl(parsed.url || parsed.data?.url);
+          const targetUrl = parsed.url || parsed.data?.url || '';
+          if (targetUrl) {
+            setUrl(targetUrl);
+            setLastScannedUrl(targetUrl);
           }
         }
       }
@@ -574,41 +580,68 @@ export default function Home() {
     setAiError(null);
   };
 
-  const runScan = async (type: ScanType) => {
+  const runScan = async (type: ScanType, targetUrl: string) => {
     const path = getScanPath(type);
     const res = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: targetUrl }),
     });
     return res.json();
   };
 
   const handleScan = async () => {
-    if (!url) return;
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
+
     setLoading(true);
     setResult(null);
     setAiResult(null);
     setAiError(null);
     setScanStatus('scanning');
+
+    // Check if user changed URL to a new target
+    const isNewUrl =
+      !lastScannedUrl ||
+      lastScannedUrl.trim().toLowerCase() !== trimmedUrl.toLowerCase();
+
+    // If new URL, flush all previous results completely
+    const baseMap = isNewUrl ? {} : resultsByType;
+    if (isNewUrl) {
+      setResultsByType({});
+      try {
+        localStorage.removeItem('webscan_results_by_type');
+        localStorage.removeItem('webscan_dashboard_data');
+        localStorage.removeItem('webscan_state');
+      } catch {}
+    }
+
     try {
-      const data = await runScan(scanType);
+      const data = await runScan(scanType, trimmedUrl);
       setResult(data);
       setScanStatus('done');
+      setLastScannedUrl(trimmedUrl);
 
       const updatedMap: ScanResultsMap = {
-        ...resultsByType,
+        ...baseMap,
         [scanType]: data,
       };
       setResultsByType(updatedMap);
 
-      // Save to localStorage for dashboard & session retention
+      // Save to localStorage strictly for the current URL
       try {
         localStorage.setItem('webscan_results_by_type', JSON.stringify(updatedMap));
         localStorage.setItem('webscan_dashboard_data', JSON.stringify(data));
         localStorage.setItem(
           'webscan_state',
-          JSON.stringify({ url, scanType, resultsByType: updatedMap, result: data, aiResult: null })
+          JSON.stringify({
+            url: trimmedUrl,
+            lastScannedUrl: trimmedUrl,
+            scanType,
+            resultsByType: updatedMap,
+            result: data,
+            aiResult: null,
+          })
         );
       } catch { /* ignore quota errors */ }
     } catch (err) {
@@ -638,7 +671,14 @@ export default function Home() {
         try {
           localStorage.setItem(
             'webscan_state',
-            JSON.stringify({ url, scanType, resultsByType, result, aiResult: data.analysis })
+            JSON.stringify({
+              url: url.trim(),
+              lastScannedUrl: lastScannedUrl || url.trim(),
+              scanType,
+              resultsByType,
+              result,
+              aiResult: data.analysis,
+            })
           );
         } catch {}
       }
@@ -650,6 +690,7 @@ export default function Home() {
 
   const handleReset = () => {
     setUrl('');
+    setLastScannedUrl('');
     setResult(null);
     setAiResult(null);
     setAiError(null);
