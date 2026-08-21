@@ -13,6 +13,7 @@ Standards:
 
 from datetime import datetime, timezone
 from typing import Any, Optional
+from standards_guidance import get_guidance
 
 
 # ── Status constants ──────────────────────────────────────────────────────────
@@ -50,10 +51,13 @@ def _extract(raw: Any) -> Optional[dict]:
 #  Result builder
 # ══════════════════════════════════════════════════════════════════════════════
 def _make(check: dict, status: str, detail: str, source: str) -> dict:
+    guide = get_guidance(check["id"])
     return {
         "id": check["id"],
         "name": check["name"],
         "name_th": check["name_th"],
+        "why_th": guide.get("why_th", ""),
+        "remediation_th": guide.get("remediation_th", ""),
         "standard": check["standard"],
         "category": check["category"],
         "status": status,
@@ -65,6 +69,92 @@ def _make(check: dict, status: str, detail: str, source: str) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 #  Evaluators: axe-core, Lighthouse, header, custom
 # ══════════════════════════════════════════════════════════════════════════════
+
+# ── Thai Rule Explanations for axe-core rules (Fail vs Pass) ───────────────
+RULE_FAIL_TH: dict[str, str] = {
+    "image-alt": "รูปภาพนี้ไม่มีแอตทริบิวต์ alt อธิบายรูปภาพ",
+    "color-contrast": "สีตัวอักษรและพื้นหลังมีความเปรียบต่างไม่เพียงพอ (ต่ำกว่าเกณฑ์ 4.5:1)",
+    "label": "ช่องกรอกข้อมูลนี้ไม่มีป้ายชื่อ Label หรือ aria-label กำกับ",
+    "button-name": "ปุ่มนี้ไม่มีข้อความหรือ aria-label ระบุหน้าที่ของปุ่ม",
+    "link-name": "ลิงก์นี้ไม่มีข้อความที่สื่อความหมายหรือเป็นลิงก์ว่าง",
+    "document-title": "เอกสารไม่มีแท็ก <title> หรือแท็ก <title> ว่างเปล่า",
+    "html-has-lang": "แท็ก <html> ไม่มีแอตทริบิวต์ lang ระบุภาษา",
+    "html-lang-valid": "ค่ารหัสภาษาใน lang ไม่ถูกต้องตามมาตรฐาน BCP 47",
+    "heading-order": "ลำดับหัวข้อ <h1-h6> ข้ามระดับ ไม่เรียงตามโครงสร้าง",
+    "list": "แท็ก <ul> หรือ <ol> มี element อื่นที่ไม่ใช่ <li> อยู่ข้างใน",
+    "listitem": "แท็ก <li> ไม่ได้อยู่ภายใต้แท็ก <ul> หรือ <ol>",
+    "frame-title": "แท็ก <iframe> ไม่มีแอตทริบิวต์ title อธิบายเนื้อหา",
+    "th-has-data-cells": "ตารางข้อมูลไม่มีการระบุความสัมพันธ์ของหัวตาราง <th>",
+    "td-headers-attr": "แอตทริบิวต์ headers ในตารางอ้างอิง id ที่ไม่มีอยู่จริง",
+    "input-image-alt": "ปุ่มรูปภาพ <input type='image'> ไม่มีแอตทริบิวต์ alt",
+    "autocomplete-valid": "ค่า autocomplete ในช่องกรอกไม่ถูกต้องตามมาตรฐาน",
+    "fieldset-no-legend": "แท็ก <fieldset> ไม่มี <legend> อธิบายชื่อกลุ่ม",
+    "form-field-multiple-labels": "ช่องกรอกมี Label ผูกซ้ำซ้อนหลายอัน",
+    "area-alt": "จุดคลิก <area> บนแผนที่รูปภาพไม่มีคำอธิบาย alt",
+    "object-alt": "แท็ก <object> ไม่มีข้อความสำรองกรณีอุปกรณ์ไม่รองรับ",
+    "video-caption": "วิดีโอไม่มีแท็ก <track> คำบรรยาย (Captions)",
+    "svg-img-alt": "ภาพกราฟิก SVG ไม่มี <title> หรือ aria-label กำกับ",
+    "tabindex": "แท็กมีการใส่ tabindex มากกว่า 0 ซึ่งทำลายลำดับการกด Tab",
+    "duplicate-id": "พบค่า id ซ้ำกันในหน้าเดียวกัน",
+    "duplicate-id-aria": "พบค่า id ที่ใช้ใน ARIA ซ้ำกัน",
+    "bypass": "ไม่พบปุ่มลัดข้ามเมนู (Skip to main content) สำหรับคีย์บอร์ด",
+    "aria-hidden-focus": "Element ที่มี aria-hidden='true' สามารถรับ Focus ได้",
+    "scrollable-region-focusable": "กล่อง Scroll ไม่มี tabindex='0' ให้คีย์บอร์ดเลื่อนได้",
+    "meta-viewport": "มีการล็อกการซูมหน้าจอใน <meta name='viewport'>",
+    "css-orientation-lock": "มีการล็อกทิศทางหน้าจอแนวตั้ง/แนวนอนด้วย CSS",
+    "avoid-inline-spacing": "มีการใช้ !important ทับระยะห่างตัวอักษรทำให้ปรับแต่งไม่ได้",
+    "aria-roles": "ค่า role ของ ARIA ไม่ถูกต้องตามมาตรฐาน W3C",
+    "aria-valid-attr": "ชื่อแอตทริบิวต์ aria-* สะกดไม่ถูกต้อง",
+    "aria-valid-attr-value": "ค่าในแอตทริบิวต์ aria-* ไม่ตรงตาม Type ที่กำหนด",
+    "aria-required-attr": "ขาดแอตทริบิวต์บังคับของ ARIA Role นั้นๆ",
+    "aria-required-parent": "ARIA Role ไม่ได้อยู่ภายใต้ Parent Role ที่กำหนด",
+    "aria-required-children": "ARIA Role ขาด Children Role ที่สัมพันธ์กัน",
+    "aria-hidden-body": "มีการใส่ aria-hidden='true' บนแท็ก <body>",
+    "aria-dialog-name": "หน้าต่าง Pop-up (dialog) ไม่มีชื่อกำกับ",
+}
+
+RULE_PASS_TH: dict[str, str] = {
+    "image-alt": "รูปภาพมีแอตทริบิวต์ alt อธิบายรูปภาพครบถ้วน",
+    "color-contrast": "สีตัวอักษรและพื้นหลังมีความเปรียบต่างผ่านเกณฑ์มาตรฐาน (>= 4.5:1)",
+    "label": "ช่องกรอกข้อมูลมีป้ายชื่อ Label หรือ aria-label กำกับถูกต้อง",
+    "button-name": "ปุ่มมีข้อความหรือ aria-label ระบุหน้าที่ชัดเจน",
+    "link-name": "ลิงก์มีข้อความที่สื่อความหมายชัดเจน",
+    "document-title": "เอกสารมีแท็ก <title> ระบุชื่อหน้าเว็บอย่างถูกต้อง",
+    "html-has-lang": "แท็ก <html> มีแอตทริบิวต์ lang ระบุภาษาของเอกสาร",
+    "html-lang-valid": "ค่ารหัสภาษาใน lang ถูกต้องตามมาตรฐาน BCP 47",
+    "heading-order": "ลำดับหัวข้อ <h1-h6> เรียงถูกต้องตามโครงสร้าง",
+    "list": "แท็ก <ul> และ <ol> มีโครงสร้างรายการถูกต้อง",
+    "listitem": "แท็ก <li> อยู่ภายใต้แท็ก <ul> หรือ <ol> อย่างถูกต้อง",
+    "frame-title": "แท็ก <iframe> มีแอตทริบิวต์ title อธิบายเนื้อหาครบถ้วน",
+    "th-has-data-cells": "ตารางข้อมูลระบุหัวตาราง <th> ถูกต้อง",
+    "td-headers-attr": "แอตทริบิวต์ headers ในตารางอ้างอิง id ถูกต้อง",
+    "input-image-alt": "ปุ่มรูปภาพมีแอตทริบิวต์ alt อธิบายชัดเจน",
+    "autocomplete-valid": "ค่า autocomplete ในช่องกรอกถูกต้องตามมาตรฐาน",
+    "fieldset-no-legend": "แท็ก <fieldset> มี <legend> ระบุชื่อกลุ่มครบถ้วน",
+    "form-field-multiple-labels": "ช่องกรอกข้อมูลผูก Label อย่างเหมาะสม",
+    "area-alt": "จุดคลิก <area> บนแผนที่รูปภาพมีคำอธิบาย alt ครบถ้วน",
+    "object-alt": "แท็ก <object> มีข้อความหรือเนื้อหาสำรองครบถ้วน",
+    "video-caption": "วิดีโอมีแท็ก <track> คำบรรยาย (Captions)",
+    "svg-img-alt": "ภาพกราฟิก SVG มี <title> หรือ aria-label กำกับชัดเจน",
+    "tabindex": "ลำดับการกด Tab เป็นไปตามธรรมชาติ (ไม่ใช้ tabindex > 0)",
+    "duplicate-id": "ค่า id ของทุก element ในหน้าเว็บไม่ซ้ำกัน",
+    "duplicate-id-aria": "ค่า id ที่ใช้ใน ARIA ไม่ซ้ำกัน",
+    "bypass": "มีปุ่มลัดข้ามเมนู (Skip to main content) อำนวยความสะดวกคีย์บอร์ด",
+    "aria-hidden-focus": "Element ที่มี aria-hidden ไม่ได้รับ Focus จากคีย์บอร์ด",
+    "scrollable-region-focusable": "กล่อง Scroll สามารถเลื่อนด้วยคีย์บอร์ดได้",
+    "meta-viewport": "อนุญาตให้ผู้ใช้ซูมขยายหน้าจอได้ตามต้องการ",
+    "css-orientation-lock": "รองรับการแสดงผลทั้งแนวตั้งและแนวนอน",
+    "avoid-inline-spacing": "รองรับการปรับระยะห่างตัวอักษรของผู้ใช้",
+    "aria-roles": "ใช้ ARIA Role ถูกต้องตามมาตรฐาน W3C",
+    "aria-valid-attr": "ใช้ชื่อแอตทริบิวต์ aria-* ถูกต้องตามมาตรฐาน",
+    "aria-valid-attr-value": "ค่าในแอตทริบิวต์ aria-* ถูกต้องตาม Type",
+    "aria-required-attr": "ใส่แอตทริบิวต์บังคับของ ARIA Role ครบถ้วน",
+    "aria-required-parent": "ARIA Role อยู่ภายใต้ Parent Role ที่ถูกต้อง",
+    "aria-required-children": "ARIA Role มี Children Role ครบถ้วน",
+    "aria-hidden-body": "แท็ก <body> ไม่ได้ถูกซ่อนด้วย aria-hidden",
+    "aria-dialog-name": "หน้าต่าง Pop-up (dialog) มีชื่อระบุหัวข้อชัดเจน",
+}
+
 
 def _eval_axe(check: dict, axe_data: Optional[dict]) -> dict:
     """Evaluate WCAG check against axe-core violations/incomplete."""
@@ -83,21 +173,99 @@ def _eval_axe(check: dict, axe_data: Optional[dict]) -> dict:
 
     if failed:
         details = []
+        evidence_nodes = []
         for v in violations:
-            if v["id"] in failed:
+            rid = v.get("id")
+            if rid in failed:
                 cnt = v.get("nodes_count", 1)
-                details.append(f'{v.get("help", v["id"])} (พบ {cnt} จุด)')
-        return _make(check, FAIL, "; ".join(details), "axe-core")
+                th_desc = RULE_FAIL_TH.get(rid, v.get("help", rid))
+                details.append(f"{th_desc} (พบ {cnt} จุด)")
+                for n in v.get("nodes", [])[:5]:
+                    target = n.get("target", [])
+                    if rid == "document-title" and target == ["html"]:
+                        target = ["head > title"]
+                    evidence_nodes.append({
+                        "target": target,
+                        "html": n.get("html", ""),
+                        "failureSummary": th_desc,
+                    })
+        if not evidence_nodes:
+            main_rule = rules[0] if rules else check["id"]
+            th_desc = RULE_FAIL_TH.get(main_rule, "พบข้อผิดพลาดตามเกณฑ์มาตรฐาน")
+            evidence_nodes.append({
+                "target": [f"HTML Document (Rule: {main_rule})"],
+                "html": f"<!-- ตรวจพบข้อบกพร่องตามกฎ {main_rule} -->",
+                "failureSummary": th_desc,
+            })
+        result = _make(check, FAIL, "; ".join(details) if details else "ไม่ผ่านการตรวจสอบ", "axe-core")
+        result["evidence"] = evidence_nodes[:10]
+        result["evidence_type"] = "dom"
+        return result
 
     if warned:
         details = []
+        evidence_nodes = []
         for i in incomplete:
-            if i["id"] in warned:
-                details.append(i.get("help", i["id"]))
-        return _make(check, WARNING,
-                     "ต้องตรวจสอบเพิ่ม: " + "; ".join(details), "axe-core")
+            rid = i.get("id")
+            if rid in warned:
+                th_desc = RULE_FAIL_TH.get(rid, i.get("help", rid))
+                details.append(f"ต้องตรวจสอบเพิ่ม: {th_desc}")
+                for n in i.get("nodes", [])[:5]:
+                    target = n.get("target", [])
+                    if rid == "document-title" and target == ["html"]:
+                        target = ["head > title"]
+                    evidence_nodes.append({
+                        "target": target,
+                        "html": n.get("html", ""),
+                        "failureSummary": f"ต้องตรวจสอบด้วยตนเอง: {th_desc}",
+                    })
+        if not evidence_nodes:
+            main_rule = rules[0] if rules else check["id"]
+            th_desc = RULE_FAIL_TH.get(main_rule, "ต้องตรวจสอบเพิ่มเติมด้วยตนเอง")
+            evidence_nodes.append({
+                "target": [f"HTML Document (Rule: {main_rule})"],
+                "html": f"<!-- ต้องตรวจสอบความสอดคล้องตามกฎ {main_rule} เพิ่มเติม -->",
+                "failureSummary": th_desc,
+            })
+        result = _make(check, WARNING,
+                       "; ".join(details) if details else "ต้องตรวจสอบเพิ่ม", "axe-core")
+        result["evidence"] = evidence_nodes[:10]
+        result["evidence_type"] = "dom"
+        return result
 
-    return _make(check, PASS, "ผ่านการตรวจสอบ", "axe-core")
+    # For PASS: extract sample passing nodes
+    passes = axe_data.get("passes", [])
+    p_ids = {p.get("id") for p in passes}
+    passed_rules = [r for r in rules if r in p_ids]
+    pass_nodes = []
+    if passed_rules:
+        for p in passes:
+            rid = p.get("id")
+            if rid in passed_rules:
+                th_desc = RULE_PASS_TH.get(rid, p.get("help", rid))
+                for n in p.get("nodes", [])[:3]:
+                    target = n.get("target", [])
+                    if rid == "document-title" and target == ["html"]:
+                        target = ["head > title"]
+                    pass_nodes.append({
+                        "target": target,
+                        "html": n.get("html", ""),
+                        "passed_summary": th_desc,
+                    })
+
+    if not pass_nodes:
+        main_rule = rules[0] if rules else check["id"]
+        th_desc = RULE_PASS_TH.get(main_rule, f"ผ่านการตรวจสอบตามเกณฑ์ {check.get('name_th', check['name'])}")
+        pass_nodes.append({
+            "target": [f"HTML Document (Rule: {main_rule})"],
+            "html": f"<!-- โครงสร้าง {check['name']} ผ่านเกณฑ์มาตรฐาน ไม่พบจุดบกพร่อง -->",
+            "passed_summary": th_desc,
+        })
+
+    result = _make(check, PASS, "ผ่านการตรวจสอบตามเกณฑ์มาตรฐาน WCAG 2.1", "axe-core")
+    result["evidence"] = pass_nodes[:6]
+    result["evidence_type"] = "dom"
+    return result
 
 
 def _eval_lh(check: dict, lh_data: Optional[dict]) -> dict:
@@ -110,13 +278,19 @@ def _eval_lh(check: dict, lh_data: Optional[dict]) -> dict:
     failed_map = {a["id"]: a for a in failed_audits}
 
     failures = []
+    evidence_nodes = []
     for aid in audit_ids:
         if aid in failed_map:
             a = failed_map[aid]
             dv = a.get("displayValue", "")
             sc = a.get("score", "?")
-            failures.append(
-                f'{a.get("title", aid)} (score: {sc}{", " + dv if dv else ""})')
+            msg = f'{a.get("title", aid)}: {dv}' if dv else f'{a.get("title", aid)} (คะแนน {sc}/100)'
+            failures.append(msg)
+            evidence_nodes.append({
+                "target": [f"Audit: {aid}"],
+                "html": f"Metric value: {dv or str(sc)}",
+                "failureSummary": a.get("description", msg),
+            })
 
     if failures:
         worst = min(
@@ -125,9 +299,19 @@ def _eval_lh(check: dict, lh_data: Optional[dict]) -> dict:
             default=50,
         )
         status = FAIL if worst < 50 else WARNING
-        return _make(check, status, "; ".join(failures), "lighthouse")
+        res = _make(check, status, "; ".join(failures), "lighthouse")
+        res["evidence"] = evidence_nodes
+        res["evidence_type"] = "lighthouse"
+        return res
 
-    return _make(check, PASS, "ผ่านการตรวจสอบ", "lighthouse")
+    res = _make(check, PASS, "คะแนนผ่านเกณฑ์มาตรฐาน Google Lighthouse", "lighthouse")
+    res["evidence"] = [{
+        "target": [f"Rules: {', '.join(audit_ids)}"],
+        "html": "Audit Passed (Score: 100/100)",
+        "passed_summary": "ผ่านเกณฑ์ประสิทธิภาพและการจัดทำดัชนี",
+    }]
+    res["evidence_type"] = "lighthouse"
+    return res
 
 
 def _eval_header(check: dict, headers_data: Optional[dict]) -> dict:
@@ -140,15 +324,36 @@ def _eval_header(check: dict, headers_data: Optional[dict]) -> dict:
     value = sec_headers.get(header_key)
 
     if not value:
-        return _make(check, FAIL,
-                     f"ไม่พบ Header: {header_key}", "headers-scan")
+        res = _make(check, FAIL, f"ไม่พบ Header: {header_key}", "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP Response Headers"],
+            "html": f"Missing: {header_key}",
+            "failureSummary": f"เซิร์ฟเวอร์ไม่ได้ส่ง {header_key} ใน Response Header",
+        }]
+        res["evidence_type"] = "header"
+        return res
 
     validator = check.get("validator")
     if validator:
         status, detail = validator(value)
-        return _make(check, status, detail, "headers-scan")
+        res = _make(check, status, detail, "headers-scan")
+        res["evidence"] = [{
+            "target": [f"HTTP Header: {header_key}"],
+            "html": f"{header_key}: {value}",
+            "failureSummary": detail if status != PASS else None,
+            "passed_summary": f"พบ Header {header_key} ค่าถูกต้อง" if status == PASS else None,
+        }]
+        res["evidence_type"] = "header"
+        return res
 
-    return _make(check, PASS, f"{header_key}: {value}", "headers-scan")
+    res = _make(check, PASS, f"{header_key}: {value}", "headers-scan")
+    res["evidence"] = [{
+        "target": [f"HTTP Header: {header_key}"],
+        "html": f"{header_key}: {value}",
+        "passed_summary": f"พบ Header {header_key}: {value}",
+    }]
+    res["evidence_type"] = "header"
+    return res
 
 
 # ── Header value validators (used by OWASP checks) ───────────────────────────
@@ -223,16 +428,44 @@ def _eval_https_redirect(check, hdr, wap, zap):
     redir = hdr.get("https_redirect", {})
 
     if is_https and redir.get("redirects_to_https"):
-        return _make(check, PASS,
-                     "HTTPS บังคับใช้ — HTTP redirect ไปยัง HTTPS",
-                     "headers-scan")
+        res = _make(check, PASS,
+                    "HTTPS บังคับใช้ — HTTP redirect ไปยัง HTTPS",
+                    "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP / HTTPS Protocol"],
+            "html": "HTTP 301/302 Redirect -> HTTPS",
+            "passed_summary": "บังคับเชื่อมต่อผ่าน HTTPS ปลอดภัยสมบูรณ์",
+        }]
+        res["evidence_type"] = "header"
+        return res
     if is_https:
         if redir.get("checked") and not redir.get("redirects_to_https"):
-            return _make(check, WARNING,
-                         "ใช้ HTTPS แต่ HTTP ไม่ redirect ไปยัง HTTPS",
-                         "headers-scan")
-        return _make(check, PASS, "เว็บไซต์ใช้ HTTPS", "headers-scan")
-    return _make(check, FAIL, "เว็บไซต์ไม่ได้ใช้ HTTPS", "headers-scan")
+            res = _make(check, WARNING,
+                        "ใช้ HTTPS แต่ HTTP ไม่ redirect ไปยัง HTTPS",
+                        "headers-scan")
+            res["evidence"] = [{
+                "target": ["HTTP Connection"],
+                "html": "HTTP Status 200 (No Redirect)",
+                "failureSummary": "เว็บไซต์รองรับ HTTPS แต่ไม่ได้ตั้งค่าบังคับ Redirect จาก HTTP",
+            }]
+            res["evidence_type"] = "header"
+            return res
+        res = _make(check, PASS, "เว็บไซต์ใช้ HTTPS", "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTPS Protocol"],
+            "html": "HTTPS Enabled",
+            "passed_summary": "เว็บไซต์ใช้งานการเชื่อมต่อที่เข้ารหัส HTTPS",
+        }]
+        res["evidence_type"] = "header"
+        return res
+    res = _make(check, FAIL, "เว็บไซต์ไม่ได้ใช้ HTTPS", "headers-scan")
+    res["evidence"] = [{
+        "target": ["HTTP Protocol"],
+        "html": "Insecure HTTP (No SSL/TLS)",
+        "failureSummary": "เว็บไซต์ยังใช้งานโปรโตคอล HTTP แบบไม่เข้ารหัส",
+    }]
+    res["evidence_type"] = "header"
+    return res
 
 
 def _eval_ncsa_hsts(check, hdr, wap, zap):
@@ -240,9 +473,23 @@ def _eval_ncsa_hsts(check, hdr, wap, zap):
         return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     val = hdr.get("security_headers", {}).get("strict-transport-security")
     if not val:
-        return _make(check, FAIL,
-                     "ไม่พบ Strict-Transport-Security header", "headers-scan")
-    return _make(check, PASS, f"HSTS: {val}", "headers-scan")
+        res = _make(check, FAIL,
+                    "ไม่พบ Strict-Transport-Security header", "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP Response Headers"],
+            "html": "Missing: Strict-Transport-Security",
+            "failureSummary": "เซิร์ฟเวอร์ไม่ได้ส่ง Header HSTS",
+        }]
+        res["evidence_type"] = "header"
+        return res
+    res = _make(check, PASS, f"HSTS: {val}", "headers-scan")
+    res["evidence"] = [{
+        "target": ["HTTP Header: Strict-Transport-Security"],
+        "html": f"Strict-Transport-Security: {val}",
+        "passed_summary": "พบการตั้งค่า HSTS เพื่อป้องกัน SSL Stripping",
+    }]
+    res["evidence_type"] = "header"
+    return res
 
 
 def _eval_ncsa_clickjack(check, hdr, wap, zap):
@@ -255,20 +502,38 @@ def _eval_ncsa_clickjack(check, hdr, wap, zap):
     if xfo:
         v = xfo.upper()
         if "DENY" in v or "SAMEORIGIN" in v:
-            return _make(check, PASS,
-                         f"X-Frame-Options: {xfo}", "headers-scan")
+            res = _make(check, PASS, f"X-Frame-Options: {xfo}", "headers-scan")
+            res["evidence"] = [{
+                "target": ["HTTP Header: X-Frame-Options"],
+                "html": f"X-Frame-Options: {xfo}",
+                "passed_summary": "พบการป้องกัน Clickjacking ด้วย X-Frame-Options",
+            }]
+            res["evidence_type"] = "header"
+            return res
     if "frame-ancestors" in csp.lower():
-        return _make(check, PASS,
-                     f"CSP frame-ancestors: {csp[:100]}", "headers-scan")
-    return _make(check, FAIL,
-                 "ไม่พบการป้องกัน Clickjacking "
-                 "(X-Frame-Options หรือ CSP frame-ancestors)",
-                 "headers-scan")
+        res = _make(check, PASS, f"CSP frame-ancestors: {csp[:100]}", "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP Header: Content-Security-Policy"],
+            "html": f"Content-Security-Policy: {csp[:120]}",
+            "passed_summary": "พบการป้องกัน Clickjacking ด้วย CSP frame-ancestors",
+        }]
+        res["evidence_type"] = "header"
+        return res
+    res = _make(check, FAIL,
+                "ไม่พบการป้องกัน Clickjacking (X-Frame-Options หรือ CSP frame-ancestors)",
+                "headers-scan")
+    res["evidence"] = [{
+        "target": ["HTTP Headers: XFO & CSP"],
+        "html": "Missing: X-Frame-Options / frame-ancestors",
+        "failureSummary": "ไม่พบการป้องกันการฝังหน้าเว็บใน iframe (เสี่ยงต่อ Clickjacking)",
+    }]
+    res["evidence_type"] = "header"
+    return res
 
 
 def _eval_server_info(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ไม่มีข้อมูล headers scan", "headers-scan")
     si = hdr.get("server_info", {})
     server = si.get("server")
     xpb = si.get("x-powered-by")
@@ -278,31 +543,65 @@ def _eval_server_info(check, hdr, wap, zap):
     if xpb:
         issues.append(f"X-Powered-By: {xpb}")
     if not issues:
-        return _make(check, PASS,
-                     "ไม่พบการเปิดเผยข้อมูลเซิร์ฟเวอร์", "headers-scan")
-    return _make(check, WARNING,
-                 "เปิดเผยข้อมูลเซิร์ฟเวอร์: " + ", ".join(issues),
-                 "headers-scan")
+        res = _make(check, PASS, "ไม่พบการเปิดเผยข้อมูลเซิร์ฟเวอร์", "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP Response Headers"],
+            "html": "Server & X-Powered-By headers are hidden",
+            "passed_summary": "ไม่พบการเปิดเผยเวอร์ชันของ Web Server หรือ Backend",
+        }]
+        res["evidence_type"] = "header"
+        return res
+    res = _make(check, WARNING, "เปิดเผยข้อมูลเซิร์ฟเวอร์: " + ", ".join(issues), "headers-scan")
+    res["evidence"] = [{
+        "target": ["HTTP Response Headers"],
+        "html": "\n".join(issues),
+        "failureSummary": "เซิร์ฟเวอร์เปิดเผยยี่ห้อ/เวอร์ชันใน Response Header",
+    }]
+    res["evidence_type"] = "header"
+    return res
 
 
 def _eval_tls_version(check, hdr, wap, zap):
     if not hdr:
-        return _make(check, INFO, "ไม่มีข้อมูล headers scan", "headers-scan")
+        return _make(check, WARNING, "ไม่มีข้อมูล headers scan", "headers-scan")
     tls_info = hdr.get("tls")
     if not tls_info or tls_info.get("error"):
         err = tls_info.get("error", "ไม่มีข้อมูล") if tls_info else "ไม่มีข้อมูล"
-        return _make(check, WARNING,
-                     f"ไม่สามารถตรวจ TLS: {err}", "headers-scan")
+        res = _make(check, WARNING, f"ไม่สามารถตรวจ TLS: {err}", "headers-scan")
+        res["evidence"] = [{
+            "target": ["SSL/TLS Handshake"],
+            "html": f"TLS Inspection Error: {err}",
+            "failureSummary": "ไม่สามารถตรวจสอบข้อมูลโปรโตคอล TLS",
+        }]
+        res["evidence_type"] = "tls"
+        return res
     proto = tls_info.get("protocol", "")
     if proto in ("TLSv1.3", "TLSv1.2"):
-        return _make(check, PASS,
-                     f"TLS Protocol: {proto}", "headers-scan")
+        res = _make(check, PASS, f"TLS Protocol: {proto}", "headers-scan")
+        res["evidence"] = [{
+            "target": ["SSL/TLS Protocol Version"],
+            "html": f"Protocol: {proto}",
+            "passed_summary": f"ใช้งาน {proto} ตามเกณฑ์ความมั่นคงปลอดภัย สกมช.",
+        }]
+        res["evidence_type"] = "tls"
+        return res
     if proto in ("TLSv1.1", "TLSv1.0", "SSLv3"):
-        return _make(check, FAIL,
-                     f"TLS Protocol ไม่ปลอดภัย: {proto} (ต้อง TLS 1.2+)",
-                     "headers-scan")
-    return _make(check, WARNING,
-                 f"TLS Protocol: {proto or 'ไม่ทราบ'}", "headers-scan")
+        res = _make(check, FAIL, f"TLS Protocol ไม่ปลอดภัย: {proto} (ต้อง TLS 1.2+)", "headers-scan")
+        res["evidence"] = [{
+            "target": ["SSL/TLS Protocol Version"],
+            "html": f"Protocol: {proto}",
+            "failureSummary": f"โปรโตคอล {proto} มีช่องโหว่ร้ายแรง ต้องปิดการใช้งาน",
+        }]
+        res["evidence_type"] = "tls"
+        return res
+    res = _make(check, WARNING, f"TLS Protocol: {proto or 'ไม่ทราบ'}", "headers-scan")
+    res["evidence"] = [{
+        "target": ["SSL/TLS Protocol Version"],
+        "html": f"Protocol: {proto or 'Unknown'}",
+        "failureSummary": "ไม่สามารถยืนยันความปลอดภัยของโปรโตคอล TLS ได้",
+    }]
+    res["evidence_type"] = "tls"
+    return res
 
 
 def _eval_cipher(check, hdr, wap, zap):
@@ -310,22 +609,55 @@ def _eval_cipher(check, hdr, wap, zap):
         return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     tls_info = hdr.get("tls")
     if not tls_info or tls_info.get("error"):
-        return _make(check, WARNING, "ไม่สามารถตรวจ Cipher Suite", "headers-scan")
+        res = _make(check, WARNING, "ไม่สามารถตรวจ Cipher Suite", "headers-scan")
+        res["evidence"] = [{
+            "target": ["SSL/TLS Cipher Suite"],
+            "html": "Cipher Inspection Unavailable",
+            "failureSummary": "ไม่สามารถตรวจข้อมูลชุดรหัส Cipher",
+        }]
+        res["evidence_type"] = "tls"
+        return res
     cipher = (tls_info.get("cipher_name")
               or tls_info.get("cipher_standard_name", ""))
     if not cipher:
-        return _make(check, WARNING, "ไม่ทราบ Cipher Suite", "headers-scan")
+        res = _make(check, WARNING, "ไม่ทราบ Cipher Suite", "headers-scan")
+        res["evidence"] = [{
+            "target": ["SSL/TLS Cipher Suite"],
+            "html": "Cipher: Unknown",
+            "failureSummary": "ไม่พบข้อมูล Cipher Suite",
+        }]
+        res["evidence_type"] = "tls"
+        return res
     upper = cipher.upper()
     if any(wc in upper for wc in WEAK_CIPHERS):
-        return _make(check, FAIL,
-                     f"Cipher Suite ไม่ปลอดภัย: {cipher}", "headers-scan")
-    return _make(check, PASS, f"Cipher Suite: {cipher}", "headers-scan")
+        res = _make(check, FAIL, f"Cipher Suite ไม่ปลอดภัย: {cipher}", "headers-scan")
+        res["evidence"] = [{
+            "target": ["SSL/TLS Cipher Suite"],
+            "html": f"Cipher: {cipher}",
+            "failureSummary": "ชุดรหัสเข้ารหัสจัดอยู่ในกลุ่ม Weak Cipher ที่ไม่ปลอดภัย",
+        }]
+        res["evidence_type"] = "tls"
+        return res
+    res = _make(check, PASS, f"Cipher Suite: {cipher}", "headers-scan")
+    res["evidence"] = [{
+        "target": ["SSL/TLS Cipher Suite"],
+        "html": f"Cipher: {cipher}",
+        "passed_summary": "ชุดรหัสเข้ารหัสมีความแข็งแรงตามมาตรฐานสากล",
+    }]
+    res["evidence_type"] = "tls"
+    return res
 
 
 def _eval_xss_sqli(check, hdr, wap, zap):
     if not zap:
-        return _make(check, WARNING,
-                     "ต้องรัน ZAP scan เพื่อตรวจ XSS/SQL Injection", "zap")
+        res = _make(check, WARNING, "ต้องรัน ZAP scan เพื่อตรวจ XSS/SQL Injection", "zap")
+        res["evidence"] = [{
+            "target": ["OWASP ZAP Dynamic Scan"],
+            "html": "ZAP scan is not executed",
+            "failureSummary": "ยังไม่ได้รันการสแกนแบบ Active/Passive กับ ZAP",
+        }]
+        res["evidence_type"] = "zap"
+        return res
     alerts = zap.get("alerts", [])
     keywords = ["xss", "sql injection", "cross-site scripting", "injection"]
     xss_sqli = [
@@ -335,10 +667,22 @@ def _eval_xss_sqli(check, hdr, wap, zap):
     ]
     if xss_sqli:
         names = list(set(a["alert"] for a in xss_sqli))[:3]
-        return _make(check, FAIL,
-                     f"พบช่องโหว่: {', '.join(names)}", "zap")
-    return _make(check, PASS,
-                 "ไม่พบช่องโหว่ XSS/SQL Injection จาก ZAP scan", "zap")
+        res = _make(check, FAIL, f"พบช่องโหว่: {', '.join(names)}", "zap")
+        res["evidence"] = [{
+            "target": [f"ZAP Alert: {a.get('alert')}"],
+            "html": f"URL: {a.get('url')}\nParam: {a.get('param')}\nEvidence: {a.get('evidence', '')[:100]}",
+            "failureSummary": a.get("description", "พบช่องโหว่ Injection"),
+        } for a in xss_sqli[:4]]
+        res["evidence_type"] = "zap"
+        return res
+    res = _make(check, PASS, "ไม่พบช่องโหว่ XSS/SQL Injection จาก ZAP scan", "zap")
+    res["evidence"] = [{
+        "target": ["OWASP ZAP Dynamic Scan"],
+        "html": "Zero High/Medium Injection Alerts Detected",
+        "passed_summary": "ไม่พบช่องโหว่ Injection ที่มีความเสี่ยงระดับสูงหรือปานกลาง",
+    }]
+    res["evidence_type"] = "zap"
+    return res
 
 
 def _eval_cookie_security(check, hdr, wap, zap):
@@ -346,10 +690,17 @@ def _eval_cookie_security(check, hdr, wap, zap):
         return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     cookie_info = hdr.get("cookies", {})
     if not cookie_info.get("has_cookies"):
-        return _make(check, PASS,
-                     "ไม่พบ Cookie ที่ต้องตรวจสอบ", "headers-scan")
+        res = _make(check, PASS, "ไม่พบ Cookie ที่ต้องตรวจสอบ", "headers-scan")
+        res["evidence"] = [{
+            "target": ["Set-Cookie Headers"],
+            "html": "No cookies set in response",
+            "passed_summary": "เว็บไซต์ไม่มีการสร้าง Cookie ในหน้าแรก",
+        }]
+        res["evidence_type"] = "header"
+        return res
     cookies = cookie_info.get("cookies", [])
     issues = []
+    evidence_nodes = []
     for c in cookies:
         name = c.get("name", "?")
         missing = []
@@ -360,11 +711,26 @@ def _eval_cookie_security(check, hdr, wap, zap):
         if not c.get("sameSite"):
             missing.append("SameSite")
         if missing:
-            issues.append(f'{name}: ขาด {", ".join(missing)}')
+            msg = f'{name}: ขาด {", ".join(missing)}'
+            issues.append(msg)
+            evidence_nodes.append({
+                "target": [f"Cookie: {name}"],
+                "html": f"Set-Cookie: {name}=***; (Missing: {', '.join(missing)})",
+                "failureSummary": f"Cookie ขาด Flag ความปลอดภัย: {', '.join(missing)}",
+            })
     if issues:
-        return _make(check, FAIL, "; ".join(issues[:3]), "headers-scan")
-    return _make(check, PASS,
-                 "Cookie มี Security Flags ครบถ้วน", "headers-scan")
+        res = _make(check, FAIL, "; ".join(issues[:3]), "headers-scan")
+        res["evidence"] = evidence_nodes[:5]
+        res["evidence_type"] = "header"
+        return res
+    res = _make(check, PASS, "Cookie มี Security Flags ครบถ้วน", "headers-scan")
+    res["evidence"] = [{
+        "target": [f"Cookie: {c.get('name', 'Cookie')}"],
+        "html": f"Flags: Secure={c.get('secure')}, HttpOnly={c.get('httpOnly')}, SameSite={c.get('sameSite')}",
+        "passed_summary": "Cookie มีการตั้งค่า Security Flags ครบถ้วน",
+    } for c in cookies[:3]]
+    res["evidence_type"] = "header"
+    return res
 
 
 def _eval_fingerprinting(check, hdr, wap, zap):
@@ -374,11 +740,22 @@ def _eval_fingerprinting(check, hdr, wap, zap):
     versioned = [t for t in techs if t.get("version")]
     if versioned:
         names = [f'{t["name"]} v{t["version"]}' for t in versioned[:5]]
-        return _make(check, WARNING,
-                     f"พบเวอร์ชันซอฟต์แวร์เปิดเผย: {', '.join(names)}",
-                     "wappalyzer")
-    return _make(check, PASS,
-                 "ไม่พบการเปิดเผยเวอร์ชันซอฟต์แวร์", "wappalyzer")
+        res = _make(check, WARNING, f"พบเวอร์ชันซอฟต์แวร์เปิดเผย: {', '.join(names)}", "wappalyzer")
+        res["evidence"] = [{
+            "target": [f"Technology: {t.get('name')}"],
+            "html": f"Detected: {t.get('name')} (Version {t.get('version')})",
+            "failureSummary": "มีการเปิดเผยเวอร์ชันของซอฟต์แวร์สู่สาธารณะ",
+        } for t in versioned[:5]]
+        res["evidence_type"] = "wappalyzer"
+        return res
+    res = _make(check, PASS, "ไม่พบการเปิดเผยเวอร์ชันซอฟต์แวร์", "wappalyzer")
+    res["evidence"] = [{
+        "target": ["Wappalyzer Technology Detection"],
+        "html": f"Technologies detected: {len(techs)} (No version disclosure)",
+        "passed_summary": "ไม่พบการระบุเวอร์ชันซอฟต์แวร์ที่ผู้โจมตีอาจนำไปใช้หาช่องโหว่",
+    }]
+    res["evidence_type"] = "wappalyzer"
+    return res
 
 
 def _eval_cve(check, hdr, wap, zap):
@@ -388,17 +765,27 @@ def _eval_cve(check, hdr, wap, zap):
     versioned = [t for t in techs if t.get("version")]
     if versioned:
         names = [f'{t["name"]} v{t["version"]}' for t in versioned[:3]]
-        return _make(check, WARNING,
-                     f"พบเวอร์ชัน — ควรตรวจ CVE: {', '.join(names)}",
-                     "wappalyzer")
-    return _make(check, PASS,
-                 "ไม่พบเวอร์ชันที่ต้องตรวจสอบ CVE", "wappalyzer")
+        res = _make(check, WARNING, f"พบเวอร์ชัน — ควรตรวจ CVE: {', '.join(names)}", "wappalyzer")
+        res["evidence"] = [{
+            "target": [f"Component: {t.get('name')}"],
+            "html": f"Version: {t.get('version')}",
+            "failureSummary": f"ควรตรวจสอบฐานข้อมูล CVE สำหรับ {t.get('name')} v{t.get('version')}",
+        } for t in versioned[:3]]
+        res["evidence_type"] = "wappalyzer"
+        return res
+    res = _make(check, PASS, "ไม่พบเวอร์ชันที่ต้องตรวจสอบ CVE", "wappalyzer")
+    res["evidence"] = [{
+        "target": ["CVE Assessment"],
+        "html": "No outdated or exposed component versions found",
+        "passed_summary": "ไม่พบเวอร์ชันซอฟต์แวร์ที่ต้องเฝ้าระวัง CVE เป็นพิเศษ",
+    }]
+    res["evidence_type"] = "wappalyzer"
+    return res
 
 
 def _eval_admin_urls(check, hdr, wap, zap):
     if not zap:
-        return _make(check, WARNING,
-                     "ต้องรัน ZAP scan เพื่อตรวจ Admin URLs", "zap")
+        return _make(check, WARNING, "ต้องรัน ZAP scan เพื่อตรวจ Admin URLs", "zap")
     alerts = zap.get("alerts", [])
     found = set()
     for a in alerts:
@@ -407,11 +794,22 @@ def _eval_admin_urls(check, hdr, wap, zap):
             if path in url_str:
                 found.add(path)
     if found:
-        return _make(check, WARNING,
-                     f"พบ URL ที่อาจเป็นหน้าจัดการ: {', '.join(sorted(found))}",
-                     "zap")
-    return _make(check, PASS,
-                 "ไม่พบ Admin/Login URL ที่เปิดเผย", "zap")
+        res = _make(check, WARNING, f"พบ URL ที่อาจเป็นหน้าจัดการ: {', '.join(sorted(found))}", "zap")
+        res["evidence"] = [{
+            "target": ["Administrative URL Path"],
+            "html": f"Exposed Path: {p}",
+            "failureSummary": "พบหน้าเข้าสู่ระบบหรือจัดการที่สามารถเข้าถึงได้จากภายนอก",
+        } for p in sorted(found)[:4]]
+        res["evidence_type"] = "zap"
+        return res
+    res = _make(check, PASS, "ไม่พบ Admin/Login URL ที่เปิดเผย", "zap")
+    res["evidence"] = [{
+        "target": ["ZAP Spider & Crawl"],
+        "html": "No sensitive administrative endpoints found",
+        "passed_summary": "ไม่พบหน้าจัดการ /admin หรือ /login เปิดเผยต่อสาธารณะ",
+    }]
+    res["evidence_type"] = "zap"
+    return res
 
 
 def _eval_set_cookie_owasp(check, hdr, wap, zap):
@@ -420,9 +818,17 @@ def _eval_set_cookie_owasp(check, hdr, wap, zap):
         return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
     cookie_info = hdr.get("cookies", {})
     if not cookie_info.get("has_cookies"):
-        return _make(check, PASS, "ไม่พบ Set-Cookie header", "headers-scan")
+        res = _make(check, PASS, "ไม่พบ Set-Cookie header", "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP Set-Cookie Header"],
+            "html": "No cookies in response headers",
+            "passed_summary": "ไม่พบการตั้งค่า Cookie ที่ต้องตรวจสอบ",
+        }]
+        res["evidence_type"] = "header"
+        return res
     cookies = cookie_info.get("cookies", [])
     issues = []
+    evidence_nodes = []
     for c in cookies:
         name = c.get("name", "?")
         missing = []
@@ -435,11 +841,26 @@ def _eval_set_cookie_owasp(check, hdr, wap, zap):
         if not c.get("hasExpiry"):
             missing.append("Expires/Max-Age")
         if missing:
-            issues.append(f'{name}: ขาด {", ".join(missing)}')
+            msg = f'{name}: ขาด {", ".join(missing)}'
+            issues.append(msg)
+            evidence_nodes.append({
+                "target": [f"Cookie: {name}"],
+                "html": f"Set-Cookie: {name}=***; (Missing: {', '.join(missing)})",
+                "failureSummary": f"Cookie ขาด Attributes ตามเกณฑ์ OWASP: {', '.join(missing)}",
+            })
     if issues:
-        return _make(check, FAIL, "; ".join(issues[:3]), "headers-scan")
-    return _make(check, PASS,
-                 "Set-Cookie มี Attributes ครบถ้วน", "headers-scan")
+        res = _make(check, FAIL, "; ".join(issues[:3]), "headers-scan")
+        res["evidence"] = evidence_nodes[:5]
+        res["evidence_type"] = "header"
+        return res
+    res = _make(check, PASS, "Set-Cookie มี Attributes ครบถ้วน", "headers-scan")
+    res["evidence"] = [{
+        "target": [f"Cookie: {c.get('name', 'Cookie')}"],
+        "html": f"Attributes: Secure, HttpOnly, SameSite, Max-Age/Expires",
+        "passed_summary": "Set-Cookie มี Attributes ครบถ้วนตามมาตรฐาน OWASP",
+    } for c in cookies[:3]]
+    res["evidence_type"] = "header"
+    return res
 
 
 # ── Custom evaluator dispatch table ──────────────────────────────────────────
@@ -926,14 +1347,21 @@ def _build_standards_list(results: list[dict], standard_ids: list[str] | None = 
             if cat not in cat_map:
                 seen_cats.append(cat)
                 cat_map[cat] = []
-            cat_map[cat].append({
+            item = {
                 "id": c["id"],
                 "name": c["name"],
                 "name_th": c["name_th"],
+                "why_th": c.get("why_th", ""),
+                "remediation_th": c.get("remediation_th", ""),
                 "status": c["status"],
                 "detail": c["detail"],
                 "source_tool": c["source_tool"],
-            })
+            }
+            if c.get("evidence"):
+                item["evidence"] = c["evidence"]
+            if c.get("evidence_type"):
+                item["evidence_type"] = c["evidence_type"]
+            cat_map[cat].append(item)
 
         categories = [
             {"name": cat, "checks": cat_map[cat]}
