@@ -1,20 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { STANDARD_ICONS, getGrade } from '../../lib/constants';
 
-const STANDARD_ICONS: Record<string, string> = {
-  wcag: '♿',
-  cwv: '📊',
-  ncsa: '🛡️',
-  owasp: '🔒',
-};
-
-function getGrade(pct: number): { label: string; cls: string } {
-  if (pct >= 90) return { label: 'Excellent', cls: 'grade-excellent' };
-  if (pct >= 70) return { label: 'Good', cls: 'grade-good' };
-  if (pct >= 50) return { label: 'Fair', cls: 'grade-fair' };
-  return { label: 'Needs Work', cls: 'grade-poor' };
-}
 
 // Extract all checks with a given status from standards data
 function extractChecks(standards: any[], status: string) {

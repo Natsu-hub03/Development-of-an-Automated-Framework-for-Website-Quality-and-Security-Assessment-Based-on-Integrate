@@ -3,9 +3,14 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: devpass
-      POSTGRES_DB: potato_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      POSTGRES_DB: ${POSTGRES_DB:-potato_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     ports:
       - "5432:5432"
     volumes:
@@ -16,23 +21,25 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     depends_on:
-      - db
-      - zap
+      db:
+        condition: service_healthy
+      zap:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"  # ให้ container เข้าถึง Ollama บน Windows host ได้
     environment:
-      DATABASE_URL: postgresql://postgres:devpass@db:5432/potato_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-devpass}@db:5432/${POSTGRES_DB:-potato_db}
       ZAP_BASE_URL: http://zap:8080
-      ZAP_API_KEY: ${ZAP_API_KEY}
+      ZAP_API_KEY: ${ZAP_API_KEY:-change-me-in-env-file}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
     volumes:
       - ./backend:/app
       - ./scanner:/app/scanner
       - /app/scanner/node_modules
     ports:
       - "8000:8000"
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
 
   frontend:
@@ -57,14 +64,14 @@ services:
     ports:
       - "8080:8080"
     environment:
-      ZAP_API_KEY: ${ZAP_API_KEY}
+      ZAP_API_KEY: ${ZAP_API_KEY:-change-me-in-env-file}
     command: >
       zap.sh -daemon -host 0.0.0.0 -port 8080
-      -config api.key=${ZAP_API_KEY}
+      -config api.key=${ZAP_API_KEY:-change-me-in-env-file}
       -config api.addrs.addr.name=.*
       -config api.addrs.addr.regex=true
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/JSON/core/view/version/?apikey=${ZAP_API_KEY}"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/JSON/core/view/version/?apikey=${ZAP_API_KEY:-change-me-in-env-file}"]
       interval: 30s
       timeout: 10s
       retries: 5

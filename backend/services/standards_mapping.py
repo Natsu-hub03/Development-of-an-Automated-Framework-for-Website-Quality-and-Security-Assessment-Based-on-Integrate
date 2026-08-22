@@ -19,6 +19,7 @@ from typing import Any, Optional
 PASS = "pass"
 FAIL = "fail"
 WARNING = "warning"
+INFO = "info"
 
 # ── Weak cipher patterns ─────────────────────────────────────────────────────
 WEAK_CIPHERS = ["RC4", "DES", "3DES", "NULL", "EXPORT", "RC2", "IDEA", "SEED"]

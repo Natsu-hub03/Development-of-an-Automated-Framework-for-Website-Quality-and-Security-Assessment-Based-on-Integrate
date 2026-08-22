@@ -9,6 +9,7 @@ dist/
 venv/
 .venv/
 env/
+backend/venv/
 __pycache__/
 *.py[cod]
 *$py.class

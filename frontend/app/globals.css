@@ -1821,6 +1821,10 @@ p, li, dd, blockquote {
   border-left: 3px solid var(--warning);
 }
 
+.checklist-item.status-info {
+  border-left: 3px solid var(--info, #38bdf8);
+}
+
 .checklist-item.status-pass {
   border-left: 3px solid var(--success);
 }
@@ -1891,6 +1895,11 @@ p, li, dd, blockquote {
 .checklist-status-badge.status-warning {
   background: rgba(255, 209, 102, 0.12);
   color: var(--warning);
+}
+
+.checklist-status-badge.status-info {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--info, #38bdf8);
 }
 
 /* ============================================================
