@@ -24,12 +24,26 @@ function combineScanResults(resultsByType: Record<string, any>, currentDashboard
     return currentDashboardData;
   }
 
-  // If full 'standards' scan exists, use that directly
+  // Determine active target URL
+  const primaryUrl =
+    (currentDashboardData?.data ?? currentDashboardData)?.url ||
+    (resultsByType['standards']?.data ?? resultsByType['standards'])?.url ||
+    Object.values(resultsByType)[0]?.data?.url ||
+    Object.values(resultsByType)[0]?.url ||
+    '';
+
+  const normPrimary = primaryUrl.trim().replace(/\/+$/, '').toLowerCase();
+
+  // If full 'standards' scan exists and matches primary URL, use that directly
   if (resultsByType['standards']) {
-    return resultsByType['standards'];
+    const stdScan = resultsByType['standards'];
+    const stdUrl = ((stdScan.data ?? stdScan).url || '').trim().replace(/\/+$/, '').toLowerCase();
+    if (!normPrimary || !stdUrl || stdUrl === normPrimary) {
+      return stdScan;
+    }
   }
 
-  // Otherwise, combine all individual scans
+  // Otherwise, combine only individual scans that belong to the same target URL
   const stdKeys = ['wcag', 'cwv', 'ncsa', 'owasp'];
   const standardsList: any[] = [];
   const seenStdIds = new Set<string>();
@@ -45,6 +59,11 @@ function combineScanResults(resultsByType: Record<string, any>, currentDashboard
     const raw = resultsByType[k];
     if (!raw) continue;
     const rData = raw.data ?? raw;
+    const itemUrl = (rData.url || '').trim().replace(/\/+$/, '').toLowerCase();
+    // Discard scans from different websites
+    if (normPrimary && itemUrl && itemUrl !== normPrimary) {
+      continue;
+    }
     if (rData.url) url = rData.url;
     if (rData.timestamp) timestamp = rData.timestamp;
     if (rData.wappalyzer_technologies?.length) {
@@ -64,7 +83,7 @@ function combineScanResults(resultsByType: Record<string, any>, currentDashboard
 
   if (standardsList.length > 0) {
     return {
-      url: url || (currentDashboardData?.data ?? currentDashboardData)?.url || '',
+      url: url || primaryUrl || (currentDashboardData?.data ?? currentDashboardData)?.url || '',
       timestamp: timestamp || (currentDashboardData?.data ?? currentDashboardData)?.timestamp || '',
       summary: {
         total: totalItems,
@@ -83,6 +102,40 @@ function combineScanResults(resultsByType: Record<string, any>, currentDashboard
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
+  const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pass' | 'fail' | 'warning'>('all');
+  const [expandedEvidence, setExpandedEvidence] = useState<Set<string>>(new Set());
+
+  const toggleEvidence = (key: string) => {
+    setExpandedEvidence((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleCardClick = (stdId: string) => {
+    if (selectedStandard === stdId) {
+      setSelectedStandard(null);
+    } else {
+      setSelectedStandard(stdId);
+    }
+    const el = document.getElementById('checklist-details-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleTagClick = (e: React.MouseEvent, stdId: string, status: 'pass' | 'fail' | 'warning') => {
+    e.stopPropagation();
+    setSelectedStandard(stdId);
+    setActiveFilter(status);
+    const el = document.getElementById('checklist-details-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -148,6 +201,7 @@ export default function DashboardPage() {
 
   const failedItems = extractChecks(standards, 'fail');
   const warningItems = extractChecks(standards, 'warning');
+  const passedItems = extractChecks(standards, 'pass');
 
   const formattedTime = timestamp
     ? new Date(timestamp).toLocaleString('th-TH', {
@@ -155,6 +209,37 @@ export default function DashboardPage() {
         hour: '2-digit', minute: '2-digit',
       })
     : '';
+
+  // Filter by selected standard if active
+  const stdFilteredFailed = selectedStandard
+    ? failedItems.filter((it) => it.standardId === selectedStandard)
+    : failedItems;
+  const stdFilteredWarning = selectedStandard
+    ? warningItems.filter((it) => it.standardId === selectedStandard)
+    : warningItems;
+  const stdFilteredPassed = selectedStandard
+    ? passedItems.filter((it) => it.standardId === selectedStandard)
+    : passedItems;
+
+  const allItems = [...stdFilteredFailed, ...stdFilteredWarning, ...stdFilteredPassed];
+  const filteredItems =
+    activeFilter === 'all'
+      ? allItems
+      : activeFilter === 'pass'
+        ? stdFilteredPassed
+        : activeFilter === 'fail'
+          ? stdFilteredFailed
+          : stdFilteredWarning;
+
+  const activeStdObj = selectedStandard
+    ? standards.find((s) => s.id === selectedStandard)
+    : null;
+
+  const STATUS_ICON: Record<string, string> = {
+    pass: '✅',
+    fail: '❌',
+    warning: '⚠️',
+  };
 
   return (
     <>
@@ -254,9 +339,19 @@ export default function DashboardPage() {
                 const stdPassRate = std.total > 0
                   ? Math.round((std.passed / std.total) * 100)
                   : 0;
+                const isSelected = selectedStandard === std.id;
 
                 return (
-                  <div key={std.id} className="dash-std-card">
+                  <div
+                    key={std.id}
+                    className={`dash-std-card dash-std-card--clickable ${isSelected ? 'dash-std-card--active' : ''}`}
+                    onClick={() => handleCardClick(std.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCardClick(std.id); }}
+                    aria-pressed={isSelected}
+                    title={isSelected ? 'คลิกเพื่อยกเลิกการกรอง' : `คลิกเพื่อกรองดูเฉพาะ ${std.name}`}
+                  >
                     <div className="dash-std-header">
                       <div className="dash-std-icon">
                         {STANDARD_ICONS[std.id] ?? '📋'}
@@ -281,18 +376,30 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="dash-std-counts">
-                      <div className="dash-std-count-item">
-                        <div className="dash-std-count-dot dash-std-count-dot--pass" />
-                        <span>{std.passed}</span>
-                      </div>
-                      <div className="dash-std-count-item">
-                        <div className="dash-std-count-dot dash-std-count-dot--fail" />
-                        <span>{std.failed}</span>
-                      </div>
-                      <div className="dash-std-count-item">
-                        <div className="dash-std-count-dot dash-std-count-dot--warn" />
-                        <span>{std.warning}</span>
-                      </div>
+                      <button
+                        type="button"
+                        className="dash-std-count-tag dash-std-count-tag--pass"
+                        onClick={(e) => handleTagClick(e, std.id, 'pass')}
+                        title={`ดูเฉพาะข้อที่ผ่านของ ${std.name}`}
+                      >
+                        ✅ {std.passed} ผ่าน
+                      </button>
+                      <button
+                        type="button"
+                        className="dash-std-count-tag dash-std-count-tag--fail"
+                        onClick={(e) => handleTagClick(e, std.id, 'fail')}
+                        title={`ดูเฉพาะข้อที่ไม่ผ่านของ ${std.name}`}
+                      >
+                        ❌ {std.failed} ไม่ผ่าน
+                      </button>
+                      <button
+                        type="button"
+                        className="dash-std-count-tag dash-std-count-tag--warn"
+                        onClick={(e) => handleTagClick(e, std.id, 'warning')}
+                        title={`ดูเฉพาะข้อที่เตือนของ ${std.name}`}
+                      >
+                        ⚠️ {std.warning} เตือน
+                      </button>
                     </div>
 
                     <div className="dash-std-progress">
@@ -307,155 +414,159 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Status Distribution Bar */}
-          <div className="dash-section">
-            <div className="dash-section-title">// status distribution</div>
-            <div className="dash-dist-bar-wrap">
-              <div className="dash-dist-bar">
-                {passRate > 0 && (
-                  <div
-                    className="dash-dist-segment dash-dist-segment--pass"
-                    style={{ width: `${passRate}%` }}
+          {/* ═══ Filter Tabs + Checklist Items ═══ */}
+          <div className="dash-section" id="checklist-details-section">
+            <div className="dash-section-header-row">
+              <div className="dash-section-title">// checklist details</div>
+              {activeStdObj && (
+                <div className="dash-active-std-pill">
+                  <span>กำลังกรอง: <strong>{STANDARD_ICONS[activeStdObj.id]} {activeStdObj.name}</strong></span>
+                  <button
+                    className="dash-clear-std-btn"
+                    onClick={() => setSelectedStandard(null)}
+                    title="ล้างตัวกรองมาตรฐานเพื่อดูทั้งหมด 68 ข้อ"
                   >
-                    {passRate > 8 ? `${summary.passed}` : ''}
-                  </div>
-                )}
-                {failRate > 0 && (
-                  <div
-                    className="dash-dist-segment dash-dist-segment--fail"
-                    style={{ width: `${failRate}%` }}
-                  >
-                    {failRate > 8 ? `${summary.failed}` : ''}
-                  </div>
-                )}
-                {warnRate > 0 && (
-                  <div
-                    className="dash-dist-segment dash-dist-segment--warn"
-                    style={{ width: `${warnRate}%` }}
-                  >
-                    {warnRate > 8 ? `${summary.warning}` : ''}
-                  </div>
-                )}
-              </div>
-
-              <div className="dash-dist-legend">
-                <div className="dash-dist-legend-item">
-                  <div className="dash-dist-legend-dot dash-dist-legend-dot--pass" />
-                  ผ่าน {summary.passed}
+                    ✕ ดูทั้งหมด 68 ข้อ
+                  </button>
                 </div>
-                <div className="dash-dist-legend-item">
-                  <div className="dash-dist-legend-dot dash-dist-legend-dot--fail" />
-                  ไม่ผ่าน {summary.failed}
-                </div>
-                <div className="dash-dist-legend-item">
-                  <div className="dash-dist-legend-dot dash-dist-legend-dot--warn" />
-                  เตือน {summary.warning}
-                </div>
-              </div>
-
-              {/* Per-standard bar rows */}
-              <div className="dash-std-bars">
-                {standards.map((std: any) => {
-                  const p = std.total > 0 ? Math.round((std.passed / std.total) * 100) : 0;
-                  const f = std.total > 0 ? Math.round((std.failed / std.total) * 100) : 0;
-                  const w = std.total > 0 ? (100 - p - f) : 0;
-
-                  return (
-                    <div key={std.id} className="dash-std-bar-row">
-                      <div className="dash-std-bar-label">
-                        {STANDARD_ICONS[std.id]} {std.name}
-                      </div>
-                      <div className="dash-std-bar-track">
-                        {p > 0 && (
-                          <div
-                            className="dash-dist-segment dash-dist-segment--pass"
-                            style={{ width: `${p}%` }}
-                          />
-                        )}
-                        {f > 0 && (
-                          <div
-                            className="dash-dist-segment dash-dist-segment--fail"
-                            style={{ width: `${f}%` }}
-                          />
-                        )}
-                        {w > 0 && (
-                          <div
-                            className="dash-dist-segment dash-dist-segment--warn"
-                            style={{ width: `${w}%` }}
-                          />
-                        )}
-                      </div>
-                      <div className="dash-std-bar-pct">{p}%</div>
-                    </div>
-                  );
-                })}
-              </div>
+              )}
             </div>
-          </div>
 
-          {/* Failed Items */}
-          <div className="dash-section">
-            <div className="dash-section-title">// ❌ items that failed</div>
-            <div className="dash-failed-wrap">
-              <div className="dash-failed-header">
-                <span className="dash-failed-title">รายการที่ไม่ผ่าน</span>
-                <span className="dash-failed-count">{failedItems.length} items</span>
-              </div>
-              {failedItems.length > 0 ? (
-                <div className="dash-failed-list">
-                  {failedItems.map((item, i) => (
-                    <div key={`${item.id}-${i}`} className="dash-failed-item">
-                      <span className="dash-failed-std-badge">
-                        {STANDARD_ICONS[item.standardId]} {item.standardId}
-                      </span>
-                      <div className="dash-failed-info">
-                        <div className="dash-failed-name">{item.name}</div>
-                        {item.name_th && (
-                          <div className="dash-failed-name-th">{item.name_th}</div>
-                        )}
-                        {item.detail && (
-                          <div className="dash-failed-detail">{item.detail}</div>
+            <div className="dash-filter-tabs">
+              <button
+                className={`dash-filter-tab ${activeFilter === 'all' ? 'dash-filter-tab--active' : ''}`}
+                onClick={() => setActiveFilter('all')}
+              >
+                📋 ทั้งหมด <span className="dash-filter-tab-count">{allItems.length}</span>
+              </button>
+              <button
+                className={`dash-filter-tab dash-filter-tab--fail ${activeFilter === 'fail' ? 'dash-filter-tab--active' : ''}`}
+                onClick={() => setActiveFilter('fail')}
+              >
+                ❌ ไม่ผ่าน <span className="dash-filter-tab-count">{stdFilteredFailed.length}</span>
+              </button>
+              <button
+                className={`dash-filter-tab dash-filter-tab--warn ${activeFilter === 'warning' ? 'dash-filter-tab--active' : ''}`}
+                onClick={() => setActiveFilter('warning')}
+              >
+                ⚠️ เตือน <span className="dash-filter-tab-count">{stdFilteredWarning.length}</span>
+              </button>
+              <button
+                className={`dash-filter-tab dash-filter-tab--pass ${activeFilter === 'pass' ? 'dash-filter-tab--active' : ''}`}
+                onClick={() => setActiveFilter('pass')}
+              >
+                ✅ ผ่าน <span className="dash-filter-tab-count">{stdFilteredPassed.length}</span>
+              </button>
+            </div>
+
+            <div className="dash-checklist-wrap">
+              {filteredItems.length > 0 ? (
+                <div className="dash-checklist-list">
+                  {filteredItems.map((item, i) => {
+                    const evKey = `${item.id}-${i}`;
+                    const isEvidenceOpen = expandedEvidence.has(evKey);
+                    const hasEvidence = item.evidence && item.evidence.length > 0;
+                    const isPass = item.status === 'pass';
+
+                    return (
+                      <div
+                        key={evKey}
+                        className={`dash-checklist-item dash-checklist-item--${item.status} ${isPass ? 'dash-checklist-item--compact' : ''}`}
+                      >
+                        <div className="dash-checklist-item-main">
+                          <span className="dash-checklist-status-icon">
+                            {STATUS_ICON[item.status] ?? '⚠️'}
+                          </span>
+                          <span className="dash-failed-std-badge">
+                            {STANDARD_ICONS[item.standardId]} {item.standardId}
+                          </span>
+
+                          <div className="dash-failed-info">
+                            <div className="dash-failed-header-row">
+                              <div className="dash-failed-name">
+                                {item.name}
+                                {item.name_th && (
+                                  <span className="dash-failed-name-th"> ({item.name_th})</span>
+                                )}
+                                <span className="dash-item-id-pill">{item.id}</span>
+                              </div>
+
+                              {/* Evidence button in header for compact scanning */}
+                              {hasEvidence && (
+                                <button
+                                  className={`dash-evidence-toggle ${isEvidenceOpen ? 'dash-evidence-toggle--open' : ''}`}
+                                  onClick={() => toggleEvidence(evKey)}
+                                  aria-label="ดูตำแหน่งโค้ดและหลักฐาน"
+                                  title="ดูตำแหน่งโค้ด & Selector"
+                                >
+                                  📍 <span>{isPass ? 'โค้ดที่ผ่าน' : 'จุดที่พบ'} ({item.evidence.length})</span>
+                                  <span className={`dash-evidence-arrow ${isEvidenceOpen ? 'rotated' : ''}`}>▼</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Concise Result Line */}
+                            {item.detail && (
+                              <div className="dash-failed-detail">
+                                <span className="dash-detail-tag">{isPass ? 'ผลการตรวจ:' : 'ปัญหาที่พบ:'}</span> {item.detail}
+                              </div>
+                            )}
+
+                            {/* 💡 วิธีแก้ไข (แสดงเฉพาะข้อที่ไม่ผ่านหรือเตือน) */}
+                            {!isPass && item.remediation_th && (
+                              <div className="dash-fix-box">
+                                <span className="dash-fix-icon">💡</span>
+                                <span className="dash-fix-text">
+                                  <strong>วิธีแก้:</strong> {item.remediation_th}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 📍 Evidence Panel (Pass / Fail / Warn) */}
+                        {hasEvidence && isEvidenceOpen && (
+                          <div className="dash-evidence-panel">
+                            <div className="dash-evidence-title">
+                              📍 {isPass ? 'หลักฐาน/โค้ดที่ตรวจสอบผ่าน' : 'ตำแหน่งโค้ดและรายละเอียด'}
+                            </div>
+                            {item.evidence.map((ev: any, ei: number) => (
+                              <div key={ei} className="dash-evidence-node">
+                                {ev.target && ev.target.length > 0 && (
+                                  <div className="dash-evidence-selector">
+                                    <span className="dash-evidence-label">ตำแหน่ง:</span>
+                                    <code className="dash-evidence-code">
+                                      {Array.isArray(ev.target) ? ev.target.join(' > ') : ev.target}
+                                    </code>
+                                  </div>
+                                )}
+                                {ev.html && (
+                                  <div className="dash-evidence-html">
+                                    <span className="dash-evidence-label">โค้ด:</span>
+                                    <pre className="dash-evidence-pre"><code>{ev.html}</code></pre>
+                                  </div>
+                                )}
+                                {(ev.failureSummary || ev.passed_summary || ev.summary) && (
+                                  <div className="dash-evidence-summary">
+                                    <span className="dash-evidence-label">รายละเอียด:</span>
+                                    <span className="dash-evidence-reason">
+                                      {ev.failureSummary || ev.passed_summary || ev.summary}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="dash-failed-none">✅ ผ่านทุกรายการ — ไม่มีข้อที่ fail</div>
+                <div className="dash-failed-none">ไม่พบรายการในหมวดนี้</div>
               )}
             </div>
           </div>
-
-          {/* Warning Items */}
-          {warningItems.length > 0 && (
-            <div className="dash-section">
-              <div className="dash-section-title">// ⚠️ items with warnings</div>
-              <div className="dash-warn-wrap">
-                <div className="dash-warn-header">
-                  <span className="dash-warn-title">รายการที่ต้องตรวจสอบเพิ่ม</span>
-                  <span className="dash-warn-count">{warningItems.length} items</span>
-                </div>
-                <div className="dash-failed-list">
-                  {warningItems.map((item, i) => (
-                    <div key={`${item.id}-${i}`} className="dash-failed-item">
-                      <span className="dash-failed-std-badge">
-                        {STANDARD_ICONS[item.standardId]} {item.standardId}
-                      </span>
-                      <div className="dash-failed-info">
-                        <div className="dash-failed-name">{item.name}</div>
-                        {item.name_th && (
-                          <div className="dash-failed-name-th">{item.name_th}</div>
-                        )}
-                        {item.detail && (
-                          <div className="dash-failed-detail">{item.detail}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Tech Stack */}
           {technologies.length > 0 && (

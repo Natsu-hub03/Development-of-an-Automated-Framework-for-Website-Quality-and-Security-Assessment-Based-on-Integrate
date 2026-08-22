@@ -25,17 +25,49 @@ export function TechIcon({ tech }: { tech: Technology }) {
   return null;
 }
 
-export function StandardsReportPanel({ data }: { data: any }) {
+export function StandardsReportPanel({
+  data,
+  expandedMap = {},
+  onToggleStd,
+}: {
+  data: any;
+  expandedMap?: Record<string, boolean>;
+  onToggleStd?: (id: string, isExp: boolean) => void;
+}) {
   const reportData = data?.data ?? data;
-  const standards: any[] = reportData?.standards ?? [];
-  const summary = reportData?.summary ?? {};
+  let standards: any[] = reportData?.standards ?? [];
+  if (!standards.length && reportData?.standard) {
+    standards = [reportData.standard];
+  }
+
+  const summary = reportData?.summary ?? (standards.length === 1 ? {
+    total: standards[0].total ?? (standards[0].checks?.length || 0),
+    passed: standards[0].passed ?? 0,
+    failed: standards[0].failed ?? 0,
+    warning: standards[0].warning ?? 0,
+  } : {});
+
   const technologies: Technology[] = reportData?.wappalyzer_technologies ?? [];
-  const [expandedStd, setExpandedStd] = useState<string | null>(null);
+  const [internalExpanded, setInternalExpanded] = useState<string | null>(null);
   const [techPage, setTechPage] = useState(0);
   const TECH_PER_PAGE = 10;
 
-  const toggleStd = (id: string) => {
-    setExpandedStd(expandedStd === id ? null : id);
+  const isExpanded = (stdId: string) => {
+    if (expandedMap && expandedMap[stdId] !== undefined) {
+      return expandedMap[stdId];
+    }
+    if (onToggleStd) {
+      return standards.length === 1;
+    }
+    return internalExpanded === stdId;
+  };
+
+  const toggleStd = (stdId: string) => {
+    if (onToggleStd) {
+      onToggleStd(stdId, !isExpanded(stdId));
+    } else {
+      setInternalExpanded(internalExpanded === stdId ? null : stdId);
+    }
   };
 
   const totalPages = Math.ceil(technologies.length / TECH_PER_PAGE);
@@ -49,11 +81,11 @@ export function StandardsReportPanel({ data }: { data: any }) {
       {/* Summary Bar */}
       <div className="standards-summary">
         <div className="standards-summary-title">
-          // STANDARDS COMPLIANCE REPORT
+          // {standards.length === 1 ? `${standards[0].name.toUpperCase()} REPORT` : 'STANDARDS COMPLIANCE REPORT'}
         </div>
         <div className="standards-summary-stats">
           <div className="stat-card stat-total">
-            <div className="stat-value">{summary.total ?? 68}</div>
+            <div className="stat-value">{summary.total ?? (standards.length === 1 ? standards[0].total : 68)}</div>
             <div className="stat-label">ทั้งหมด</div>
           </div>
           <div className="stat-card stat-pass">
@@ -74,17 +106,17 @@ export function StandardsReportPanel({ data }: { data: any }) {
       {/* Per-Standard Cards */}
       <div className="standards-cards">
         {standards.map((std: any) => {
-          const isExpanded = expandedStd === std.id;
+          const open = isExpanded(std.id);
           const passRate = std.total > 0
             ? Math.round((std.passed / std.total) * 100)
             : 0;
 
           return (
-            <div key={std.id} className={`standard-card ${isExpanded ? 'expanded' : ''}`}>
+            <div key={std.id} className={`standard-card ${open ? 'expanded' : ''}`}>
               <button
                 className="standard-card-header"
                 onClick={() => toggleStd(std.id)}
-                aria-expanded={isExpanded}
+                aria-expanded={open}
               >
                 <div className="standard-card-left">
                   <span className="standard-icon">{STANDARD_ICONS[std.id] ?? '📋'}</span>
@@ -106,11 +138,11 @@ export function StandardsReportPanel({ data }: { data: any }) {
                     />
                   </div>
                   <span className="standard-progress-text">{passRate}%</span>
-                  <span className={`standard-expand-icon ${isExpanded ? 'rotated' : ''}`}>▼</span>
+                  <span className={`standard-expand-icon ${open ? 'rotated' : ''}`}>▼</span>
                 </div>
               </button>
 
-              {isExpanded && (
+              {open && (
                 <div className="standard-card-body">
                   {(std.categories ?? []).map((cat: any) => (
                     <div key={cat.name} className="checklist-category">

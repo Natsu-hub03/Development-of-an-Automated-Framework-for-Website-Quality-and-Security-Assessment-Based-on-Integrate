@@ -18,6 +18,7 @@ export default function Home() {
   const [scanStatus, setScanStatus]       = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
   const [scanType, setScanType]           = useState<ScanType>('standards');
   const [resultsByType, setResultsByType] = useState<ScanResultsMap>({});
+  const [expandedMap, setExpandedMap]     = useState<Record<string, boolean>>({});
   const [aiResult, setAiResult]           = useState<string | null>(null);
   const [aiModel, setAiModel]             = useState<string>('qwen2.5:3b');
   const [aiLoading, setAiLoading]         = useState(false);
@@ -75,7 +76,33 @@ export default function Home() {
 
   const handleSelectScanType = (type: ScanType) => {
     setScanType(type);
-    const existing = resultsByType[type];
+    let existing = resultsByType[type];
+
+    // If sub-standard not yet explicitly stored, extract from all-standards result
+    if (!existing && resultsByType['standards']) {
+      const allReport = resultsByType['standards']?.data ?? resultsByType['standards'];
+      const std = (allReport?.standards ?? []).find((s: any) => s.id === type);
+      if (std) {
+        existing = {
+          success: true,
+          url: allReport.url || url,
+          timestamp: allReport.timestamp,
+          standard: std,
+          summary: {
+            total: std.total,
+            passed: std.passed,
+            failed: std.failed,
+            warning: std.warning,
+          },
+          wappalyzer_technologies: allReport.wappalyzer_technologies,
+          axe_results: allReport.axe_results,
+          lighthouse_results: allReport.lighthouse_results,
+          headers_results: allReport.headers_results,
+          zap_results: allReport.zap_results,
+        };
+      }
+    }
+
     if (existing) {
       setResult(existing);
       setScanStatus('done');
@@ -91,26 +118,29 @@ export default function Home() {
     const trimmedUrl = url.trim();
     if (!trimmedUrl) return;
 
+    const normNew = trimmedUrl.replace(/\/+$/, '').toLowerCase();
+    const normOld = (lastScannedUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+    const isNewUrl = !normOld || normNew !== normOld;
+
     setLoading(true);
     setResult(null);
     setAiResult(null);
     setAiError(null);
     setScanStatus('scanning');
 
-    // Check if user changed URL to a new target
-    const isNewUrl =
-      !lastScannedUrl ||
-      lastScannedUrl.trim().toLowerCase() !== trimmedUrl.toLowerCase();
-
-    // If new URL, flush all previous results completely
-    const baseMap = isNewUrl ? {} : resultsByType;
+    // If new URL, flush all previous results completely from memory & localStorage
+    let baseMap: ScanResultsMap = {};
     if (isNewUrl) {
       setResultsByType({});
+      setExpandedMap({});
+      setLastScannedUrl(trimmedUrl);
       try {
         localStorage.removeItem('webscan_results_by_type');
         localStorage.removeItem('webscan_dashboard_data');
         localStorage.removeItem('webscan_state');
       } catch {}
+    } else {
+      baseMap = { ...resultsByType };
     }
 
     try {
@@ -123,6 +153,35 @@ export default function Home() {
         ...baseMap,
         [scanType]: data,
       };
+
+      // If all standards were scanned, automatically populate all individual sub-standards
+      if (scanType === 'standards' && data) {
+        const reportData = data?.data ?? data;
+        const stdList: any[] = reportData?.standards ?? [];
+        for (const std of stdList) {
+          if (std?.id) {
+            const stdId = std.id as ScanType;
+            updatedMap[stdId] = {
+              success: true,
+              url: reportData.url || trimmedUrl,
+              timestamp: reportData.timestamp,
+              standard: std,
+              summary: {
+                total: std.total,
+                passed: std.passed,
+                failed: std.failed,
+                warning: std.warning,
+              },
+              wappalyzer_technologies: reportData.wappalyzer_technologies,
+              axe_results: reportData.axe_results,
+              lighthouse_results: reportData.lighthouse_results,
+              headers_results: reportData.headers_results,
+              zap_results: reportData.zap_results,
+            };
+          }
+        }
+      }
+
       setResultsByType(updatedMap);
 
       // Save to localStorage strictly for the current URL
@@ -193,6 +252,7 @@ export default function Home() {
     setAiError(null);
     setScanStatus('idle');
     setResultsByType({});
+    setExpandedMap({});
     try {
       localStorage.removeItem('webscan_state');
       localStorage.removeItem('webscan_dashboard_data');
@@ -246,7 +306,13 @@ export default function Home() {
 
             <div className="scan-type-selector" id="scan-type-selector" role="group" aria-label="Scan type">
               {(['standards', 'wcag', 'cwv', 'ncsa', 'owasp'] as ScanType[]).map((type) => {
-                const hasResult = !!resultsByType[type];
+                const hasResult = !!(
+                  resultsByType[type] ||
+                  (resultsByType['standards'] && (
+                    type === 'standards' ||
+                    ((resultsByType['standards']?.data ?? resultsByType['standards'])?.standards ?? []).some((s: any) => s.id === type)
+                  ))
+                );
                 return (
                   <button
                     key={type}
@@ -273,13 +339,35 @@ export default function Home() {
                 type="url"
                 className="url-input"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => {
+                  const newUrl = e.target.value;
+                  setUrl(newUrl);
+                  const normNew = newUrl.trim().replace(/\/+$/, '').toLowerCase();
+                  const normOld = (lastScannedUrl || '').trim().replace(/\/+$/, '').toLowerCase();
+                  if (normOld && normNew !== normOld) {
+                    setResult(null);
+                    setAiResult(null);
+                    setAiError(null);
+                    setScanStatus('idle');
+                  }
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder="https://target.example.com"
                 aria-label="URL ที่ต้องการสแกน"
                 autoComplete="url"
                 spellCheck={false}
               />
+              {url && !loading && (
+                <button
+                  type="button"
+                  className="url-clear-btn"
+                  onClick={handleReset}
+                  aria-label="ล้างข้อมูล URL และผลการสแกน"
+                  title="ล้างข้อมูลและเริ่มใหม่"
+                >
+                  ✕
+                </button>
+              )}
               <button
                 id="scan-button"
                 className="scan-btn"
@@ -320,7 +408,11 @@ export default function Home() {
                 </div>
 
                 <div className="results-panels">
-                  <StandardsReportPanel data={result} />
+                  <StandardsReportPanel
+                    data={result}
+                    expandedMap={expandedMap}
+                    onToggleStd={(id, isExp) => setExpandedMap((prev) => ({ ...prev, [id]: isExp }))}
+                  />
                 </div>
 
                 {/* Dashboard + AI buttons */}

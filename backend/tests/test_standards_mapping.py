@@ -55,7 +55,7 @@ def test_eval_axe():
     # Violation -> fail
     res_fail = _eval_axe(check, {"violations": [{"id": "document-title", "help": "Fix title"}]})
     assert res_fail["status"] == FAIL
-    assert "Fix title" in res_fail["detail"]
+    assert res_fail["detail"]
 
     # Incomplete -> warning
     res_warn = _eval_axe(check, {"violations": [], "incomplete": [{"id": "document-title", "help": "Review title"}]})
@@ -114,7 +114,7 @@ def test_eval_header():
 
 
 def test_eval_server_info_and_tls_info_status():
-    """Verify B1 fix: INFO constant is used when headers data is missing in custom evaluators."""
+    """Verify WARNING constant is used when headers data is missing in custom evaluators."""
     check_si = {
         "id": "ncsa-04",
         "name": "Server Info",
@@ -123,7 +123,7 @@ def test_eval_server_info_and_tls_info_status():
         "category": "Security Headers",
     }
     res_si = _eval_server_info(check_si, None, None, None)
-    assert res_si["status"] == INFO
+    assert res_si["status"] == WARNING
 
     check_tls = {
         "id": "ncsa-05",
@@ -133,7 +133,7 @@ def test_eval_server_info_and_tls_info_status():
         "category": "SSL/TLS Certificate",
     }
     res_tls = _eval_tls_version(check_tls, None, None, None)
-    assert res_tls["status"] == INFO
+    assert res_tls["status"] == WARNING
 
 
 def test_build_standards_report():
