@@ -10,6 +10,8 @@ export interface CheckItem {
   id: string;
   name: string;
   name_th: string;
+  why_th?: string;
+  remediation_th?: string;
   standard: string;
   category: string;
   status: CheckStatus;

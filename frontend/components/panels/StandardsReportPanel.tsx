@@ -151,6 +151,7 @@ export function StandardsReportPanel({
                         {(cat.checks ?? []).map((check: any) => {
                           const statusKey = (check.status as CheckStatus) || 'warning';
                           const cfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.warning;
+                          const showRisk = statusKey === 'fail' || statusKey === 'warning';
                           return (
                             <div key={check.id} className={`checklist-item ${cfg.cls}`}>
                               <span className="checklist-status-icon">{cfg.icon}</span>
@@ -161,6 +162,28 @@ export function StandardsReportPanel({
                                 </div>
                                 <div className="checklist-item-name-th">{check.name_th}</div>
                                 <div className="checklist-item-detail">{check.detail}</div>
+                                {showRisk && (check.why_th || check.remediation_th) && (
+                                  <div className={`checklist-risk-block ${statusKey === 'fail' ? 'risk-fail' : 'risk-warning'}`}>
+                                    {check.why_th && (
+                                      <div className="checklist-risk-row">
+                                        <span className="checklist-risk-icon">⚡</span>
+                                        <div>
+                                          <div className="checklist-risk-label">ความเสี่ยง</div>
+                                          <div className="checklist-risk-text">{check.why_th}</div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {check.remediation_th && (
+                                      <div className="checklist-risk-row">
+                                        <span className="checklist-risk-icon">🛠️</span>
+                                        <div>
+                                          <div className="checklist-risk-label">แนวทางแก้ไข</div>
+                                          <div className="checklist-risk-text">{check.remediation_th}</div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <span className={`checklist-status-badge ${cfg.cls}`}>
                                 {cfg.label}

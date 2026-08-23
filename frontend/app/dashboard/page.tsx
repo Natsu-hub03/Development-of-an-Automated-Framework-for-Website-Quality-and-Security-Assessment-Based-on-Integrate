@@ -512,6 +512,16 @@ export default function DashboardPage() {
                               </div>
                             )}
 
+                            {/* ⚡ ความเสี่ยง (แสดงเฉพาะข้อที่ไม่ผ่านหรือเตือน) */}
+                            {!isPass && item.why_th && (
+                              <div className="dash-risk-box">
+                                <span className="dash-risk-box-icon">⚡</span>
+                                <span className="dash-risk-box-text">
+                                  <strong>ความเสี่ยง:</strong> {item.why_th}
+                                </span>
+                              </div>
+                            )}
+
                             {/* 💡 วิธีแก้ไข (แสดงเฉพาะข้อที่ไม่ผ่านหรือเตือน) */}
                             {!isPass && item.remediation_th && (
                               <div className="dash-fix-box">

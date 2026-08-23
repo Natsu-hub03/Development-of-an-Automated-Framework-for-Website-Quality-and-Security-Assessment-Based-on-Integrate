@@ -1,8 +1,8 @@
 # Project Context: AI-Assisted Web Standards & Vulnerability Assessment System (WebScan / Potato)
 
 ## 1. Project Overview
-ระบบประเมินมาตรฐานและความปลอดภัยของเว็บไซต์แบบอัตโนมัติ (Automated Web Standards & Security Assessment System) ที่ผสานรวมการตรวจสอบมาตรฐานสากล 4 ด้าน (68 รายการ), การสแกนช่องโหว่ความปลอดภัย และการวิเคราะห์สรุปผลด้วย AI (Local LLM via Ollama)
 
+ระบบประเมินมาตรฐานและความปลอดภัยของเว็บไซต์แบบอัตโนมัติ (Automated Web Standards & Security Assessment System) ที่ผสานรวมการตรวจสอบมาตรฐานสากล 4 ด้าน (68 รายการ), การสแกนช่องโหว่ความปลอดภัย และการวิเคราะห์สรุปผลด้วย AI (Local LLM via Ollama)
 
 ## 2. System Architecture & Tech Stack
 
@@ -17,14 +17,15 @@ graph TD
 ```
 
 ### Components & Ports
-| Service | Technology | Port | หน้าที่หลัก |
-|---|---|---|---|
-| **Frontend** | Next.js (App Router), TypeScript, Tailwind/Custom CSS | `3000` | UI กรอก URL, Dashboard แสดงผล Checklist, Charts, AI Report |
-| **Backend** | FastAPI (Python 3.11+), SQLAlchemy, Uvicorn | `8000` | Orchestration, API Endpoints, ผสานรวมผลการสแกน และคุยกับ DB/AI |
-| **Database** | PostgreSQL 16 (Alpine) | `5432` | เก็บประวัติการสแกน (`scans`, `scan_results`) |
-| **ZAP Scanner** | OWASP ZAP (zaproxy/zap-stable) | `8080` | Spidering & Active Vulnerability Scanning |
-| **Node.js Scanners** | Node.js Scripts (Axe, Lighthouse, Wappalyzer, Headers) | Subprocess | ตรวจสอบ Accessibility, Performance, SEO, Tech Stack และ Headers |
-| **AI Engine** | Ollama (`qwen2.5:3b`) | `11434` (Host) | วิเคราะห์ผลสแกน, สรุปความเสี่ยง, ให้คำแนะนำภาษาไทย |
+
+| Service              | Technology                                             | Port           | หน้าที่หลัก                                                     |
+| -------------------- | ------------------------------------------------------ | -------------- | --------------------------------------------------------------- |
+| **Frontend**         | Next.js (App Router), TypeScript, Tailwind/Custom CSS  | `3000`         | UI กรอก URL, Dashboard แสดงผล Checklist, Charts, AI Report      |
+| **Backend**          | FastAPI (Python 3.11+), SQLAlchemy, Uvicorn            | `8000`         | Orchestration, API Endpoints, ผสานรวมผลการสแกน และคุยกับ DB/AI  |
+| **Database**         | PostgreSQL 16 (Alpine)                                 | `5432`         | เก็บประวัติการสแกน (`scans`, `scan_results`)                    |
+| **ZAP Scanner**      | OWASP ZAP (zaproxy/zap-stable)                         | `8080`         | Spidering & Active Vulnerability Scanning                       |
+| **Node.js Scanners** | Node.js Scripts (Axe, Lighthouse, Wappalyzer, Headers) | Subprocess     | ตรวจสอบ Accessibility, Performance, SEO, Tech Stack และ Headers |
+| **AI Engine**        | Ollama (`qwen2.5:3b`)                                  | `11434` (Host) | วิเคราะห์ผลสแกน, สรุปความเสี่ยง, ให้คำแนะนำภาษาไทย              |
 
 ---
 
