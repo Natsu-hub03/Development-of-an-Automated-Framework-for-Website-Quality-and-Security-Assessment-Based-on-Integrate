@@ -7,10 +7,21 @@
     "**/__pycache__",
     "backend/venv"
   ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        ".",
+        "app",
+        "db",
+        "services"
+      ]
+    }
+  ],
   "extraPaths": [
-    "backend"
+    "backend",
+    "./backend"
   ],
   "venvPath": "backend",
-  "venv": "venv",
-  "pythonVersion": "3.11"
+  "venv": "venv"
 }

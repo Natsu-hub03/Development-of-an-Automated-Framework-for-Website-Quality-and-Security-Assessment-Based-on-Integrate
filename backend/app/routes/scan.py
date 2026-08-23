@@ -5,6 +5,7 @@ Individual scanner endpoints: /scan/wappalyzer, /scan/axe, /scan/lighthouse,
 These are tool-level endpoints for testing individual scanners.
 DB writes are intentionally omitted — use /scan/standards for persisted results.
 """
+import asyncio
 import logging
 
 import httpx

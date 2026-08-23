@@ -11,7 +11,7 @@ import ollama
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Any
+from typing import Any, Optional
 
 from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL, MAX_JSON_CHARS
 from db.database import get_db
@@ -30,11 +30,11 @@ class AIAnalyzeRequest(BaseModel):
 class CheckAIFixRequest(BaseModel):
     check_id: str
     check_name: str
-    check_name_th: str | None = None
+    check_name_th: Optional[str] = None
     status: str
     detail: str
-    why_th: str | None = None
-    evidence: Any | None = None
+    why_th: Optional[str] = None
+    evidence: Optional[Any] = None
 
 
 @router.post("/analyze/ai")
