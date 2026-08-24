@@ -34,9 +34,6 @@ def _get_scanner_dir() -> Path:
     raise FileNotFoundError("scanner directory not found")
 
 
-def _get_scanner_path() -> Path:
-    return _get_scanner_dir() / "wappalyzer_scan.js"
-
 
 # ── Node.js scanner runner ───────────────────────────────────────────────────
 def run_node_scanner(script_name: str, url: str, timeout: int = 120) -> dict | None:
@@ -101,12 +98,8 @@ def run_single_scanner(script_name: str, url: str, timeout: int = 120) -> dict:
     return data
 
 
-# ── Common admin paths for fast probing ──────────────────────────────────────
-ADMIN_PROBE_PATHS = [
-    "/admin", "/wp-admin", "/wp-login.php", "/administrator",
-    "/login", "/phpmyadmin", "/cpanel", "/webmail",
-    "/manager", "/console", "/dashboard/login",
-]
+# ── Common admin paths for fast probing (shared with standards evaluators) ────
+from services.standards.helpers import ADMIN_PATHS as ADMIN_PROBE_PATHS
 
 # ── XSS / SQLi active-scan rule IDs in ZAP ──────────────────────────────────
 # These are the only rules we need for NCSA checks (ncsa-07: XSS & SQL Injection)

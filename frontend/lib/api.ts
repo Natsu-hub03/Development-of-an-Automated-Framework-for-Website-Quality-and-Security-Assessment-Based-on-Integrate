@@ -2,32 +2,82 @@
  * API client functions for communicating with backend services.
  */
 import { API_BASE_URL } from './constants';
-import { ScanType, ScanApiResponse } from './types';
+import type { ScanType, ScanApiResponse } from './types';
 
 export function getScanEndpoint(type: ScanType): string {
   if (type === 'standards') return '/scan/standards';
   return `/scan/standard/${type}`;
 }
 
-export async function executeScan(type: ScanType, targetUrl: string): Promise<ScanApiResponse> {
+const DEFAULT_SCAN_TIMEOUT = 180_000; // 3 minutes for comprehensive multi-tool scans
+const DEFAULT_AI_TIMEOUT = 60_000;    // 1 minute for Ollama analysis
+
+export async function executeScan(
+  type: ScanType,
+  targetUrl: string,
+  timeoutMs = DEFAULT_SCAN_TIMEOUT
+): Promise<ScanApiResponse> {
   const endpoint = getScanEndpoint(type);
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: targetUrl }),
-  });
-  return res.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: targetUrl }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        error: errBody.detail || `Server error (${res.status}): ${res.statusText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { error: 'การสแกนหมดเวลา (Request timed out)' };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function executeAiAnalysis(
   url: string,
-  scanData: any,
-  scanType: string
+  scanData: unknown,
+  scanType: string,
+  timeoutMs = DEFAULT_AI_TIMEOUT
 ): Promise<ScanApiResponse> {
-  const res = await fetch(`${API_BASE_URL}/analyze/ai`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, scan_data: scanData, scan_type: scanType }),
-  });
-  return res.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/analyze/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, scan_data: scanData, scan_type: scanType }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        error: errBody.detail || `AI service error (${res.status}): ${res.statusText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { error: 'การวิเคราะห์ AI หมดเวลา (Request timed out)' };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

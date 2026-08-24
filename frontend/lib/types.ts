@@ -6,6 +6,16 @@ export type ScanType = 'standards' | 'wcag' | 'cwv' | 'ncsa' | 'owasp';
 
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'info';
 
+export type ScanStatus = 'idle' | 'scanning' | 'done' | 'error';
+
+export interface EvidenceNode {
+  target?: string[];
+  html?: string;
+  failureSummary?: string;
+  passed_summary?: string;
+  summary?: string;
+}
+
 export interface CheckItem {
   id: string;
   name: string;
@@ -17,6 +27,8 @@ export interface CheckItem {
   status: CheckStatus;
   detail: string;
   source_tool: string;
+  evidence?: EvidenceNode[];
+  evidence_type?: string;
   standardId?: string;
   standardName?: string;
 }
@@ -64,11 +76,11 @@ export interface StandardsReportData {
 export interface ScanApiResponse {
   success?: boolean;
   scan_id?: number;
-  data?: StandardsReportData | any;
+  data?: StandardsReportData;
   error?: string;
   url?: string;
   model?: string;
   analysis?: string;
 }
 
-export type ScanResultsMap = Partial<Record<ScanType, any>>;
+export type ScanResultsMap = Partial<Record<ScanType, ScanApiResponse>>;

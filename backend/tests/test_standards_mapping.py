@@ -1,22 +1,24 @@
 """
-Unit tests for 68-item standards mapping logic in services/standards_mapping.py
+Unit tests for 68-item standards mapping logic in services/standards/
 """
 
-from services.standards_mapping import (
+from services.standards import (
     CHECKS,
     STANDARDS_META,
     PASS,
     FAIL,
     WARNING,
-    INFO,
     _extract,
+    build_standards_report,
+    build_single_standard_report,
+)
+from services.standards.helpers import INFO
+from services.standards.evaluators import (
     _eval_axe,
     _eval_lh,
     _eval_header,
     _eval_server_info,
     _eval_tls_version,
-    build_standards_report,
-    build_single_standard_report,
 )
 
 

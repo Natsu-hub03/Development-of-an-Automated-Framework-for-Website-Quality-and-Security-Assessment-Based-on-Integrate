@@ -8,16 +8,12 @@ DB writes are intentionally omitted — use /scan/standards for persisted result
 import logging
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, AnyHttpUrl
 
+from app.schemas import ScanRequest
 from services.scanner import run_single_scanner
 
 logger = logging.getLogger("webscan.routes.scan")
 router = APIRouter(prefix="/scan", tags=["scan"])
-
-
-class ScanRequest(BaseModel):
-    url: AnyHttpUrl
 
 
 # ── Wappalyzer ────────────────────────────────────────────────────────────────

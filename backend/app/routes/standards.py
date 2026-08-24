@@ -8,13 +8,13 @@ import logging
 from functools import partial
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, AnyHttpUrl
 from sqlalchemy.orm import Session
 
+from app.schemas import ScanRequest
 from db.database import get_db
 from db.models import Scan, ScanResult
 from services.scanner import run_node_scanner, run_zap_scan, scanner_executor
-from services.standards_mapping import (
+from services.standards import (
     build_standards_report,
     build_single_standard_report,
     STANDARD_TOOLS,
@@ -23,10 +23,6 @@ from services.standards_mapping import (
 
 logger = logging.getLogger("webscan.routes.standards")
 router = APIRouter(prefix="/scan", tags=["standards"])
-
-
-class ScanRequest(BaseModel):
-    url: AnyHttpUrl
 
 
 STANDARD_LABELS = {
@@ -41,7 +37,7 @@ STANDARD_LABELS = {
 async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
     """Run all scanners and produce the 68-item standards compliance report."""
     url_str = str(request.url)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # Run Node.js scanners in thread pool + ZAP async concurrently
     axe_future = loop.run_in_executor(
@@ -80,22 +76,28 @@ async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
         wap_data.get("technologies", []) if isinstance(wap_data, dict) else []
     )
 
-    # Persist
+    # Persist — wrap sync DB ops in executor to avoid blocking the event loop
+    def _persist_scan():
+        try:
+            scan = Scan(url=url_str, status="completed")
+            db.add(scan)
+            db.commit()
+            db.refresh(scan)
+
+            scan_result = ScanResult(
+                scan_id=scan.id, tool_name="standards", raw_data=report
+            )
+            db.add(scan_result)
+            db.commit()
+            return scan.id
+        except Exception as e:
+            db.rollback()
+            raise e
+
     try:
-        scan = Scan(url=url_str, status="completed")
-        db.add(scan)
-        db.commit()
-        db.refresh(scan)
-
-        scan_result = ScanResult(
-            scan_id=scan.id, tool_name="standards", raw_data=report
-        )
-        db.add(scan_result)
-        db.commit()
-
-        return {"success": True, "scan_id": scan.id, "data": report}
+        scan_id = await loop.run_in_executor(None, _persist_scan)
+        return {"success": True, "scan_id": scan_id, "data": report}
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
 
 
@@ -114,7 +116,7 @@ async def scan_single_standard(
 
     url_str = str(request.url)
     tools_needed = STANDARD_TOOLS[standard_id]
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # Run only the tools this standard requires
     futures = []
@@ -187,22 +189,28 @@ async def scan_single_standard(
     else:
         report["wappalyzer_technologies"] = []
 
-    # Persist
+    # Persist — wrap sync DB ops in executor to avoid blocking the event loop
+    def _persist_scan():
+        try:
+            scan = Scan(url=url_str, status="completed")
+            db.add(scan)
+            db.commit()
+            db.refresh(scan)
+
+            scan_result = ScanResult(
+                scan_id=scan.id,
+                tool_name=f"standard_{standard_id}",
+                raw_data=report,
+            )
+            db.add(scan_result)
+            db.commit()
+            return scan.id
+        except Exception as e:
+            db.rollback()
+            raise e
+
     try:
-        scan = Scan(url=url_str, status="completed")
-        db.add(scan)
-        db.commit()
-        db.refresh(scan)
-
-        scan_result = ScanResult(
-            scan_id=scan.id,
-            tool_name=f"standard_{standard_id}",
-            raw_data=report,
-        )
-        db.add(scan_result)
-        db.commit()
-
-        return {"success": True, "scan_id": scan.id, "data": report}
+        scan_id = await loop.run_in_executor(None, _persist_scan)
+        return {"success": True, "scan_id": scan_id, "data": report}
     except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=f"Database write failed: {e}")

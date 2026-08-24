@@ -72,10 +72,10 @@ services:
       -config api.addrs.addr.regex=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/JSON/core/view/version/?apikey=${ZAP_API_KEY:-change-me-in-env-file}"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 90s
     volumes:
       - zap_data:/home/zap/.ZAP
     restart: unless-stopped

@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { STATUS_CONFIG, STANDARD_ICONS } from '../../lib/constants';
-import { Technology, CheckStatus } from '../../lib/types';
+import type { Technology, CheckStatus, ScanApiResponse, StandardsReportData, StandardReport, CategoryGroup, CheckItem } from '../../lib/types';
+import { unwrapReportData } from '../../lib/utils';
 
 export function TechIcon({ tech }: { tech: Technology }) {
   const icon = tech.icon;
@@ -30,22 +31,23 @@ export function StandardsReportPanel({
   expandedMap = {},
   onToggleStd,
 }: {
-  data: any;
+  data: ScanApiResponse | StandardsReportData | Record<string, unknown> | null;
   expandedMap?: Record<string, boolean>;
   onToggleStd?: (id: string, isExp: boolean) => void;
 }) {
-  const reportData = data?.data ?? data;
-  let standards: any[] = reportData?.standards ?? [];
-  if (!standards.length && reportData?.standard) {
-    standards = [reportData.standard];
+  const reportData = unwrapReportData(data as ScanApiResponse);
+  const rawObj = data as Record<string, unknown> | null;
+  let standards: StandardReport[] = reportData?.standards ?? [];
+  if (!standards.length && rawObj?.standard) {
+    standards = [rawObj.standard as StandardReport];
   }
 
   const summary = reportData?.summary ?? (standards.length === 1 ? {
-    total: standards[0].total ?? (standards[0].checks?.length || 0),
+    total: standards[0].total ?? (standards[0].categories?.flatMap(c => c.checks).length || 0),
     passed: standards[0].passed ?? 0,
     failed: standards[0].failed ?? 0,
     warning: standards[0].warning ?? 0,
-  } : {});
+  } : { total: 68, passed: 0, failed: 0, warning: 0 });
 
   const technologies: Technology[] = reportData?.wappalyzer_technologies ?? [];
   const [internalExpanded, setInternalExpanded] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function StandardsReportPanel({
 
       {/* Per-Standard Cards */}
       <div className="standards-cards">
-        {standards.map((std: any) => {
+        {standards.map((std: StandardReport) => {
           const open = isExpanded(std.id);
           const passRate = std.total > 0
             ? Math.round((std.passed / std.total) * 100)
@@ -144,11 +146,11 @@ export function StandardsReportPanel({
 
               {open && (
                 <div className="standard-card-body">
-                  {(std.categories ?? []).map((cat: any) => (
+                  {(std.categories ?? []).map((cat: CategoryGroup) => (
                     <div key={cat.name} className="checklist-category">
                       <div className="checklist-category-name">{cat.name}</div>
                       <div className="checklist-items">
-                        {(cat.checks ?? []).map((check: any) => {
+                        {(cat.checks ?? []).map((check: CheckItem) => {
                           const statusKey = (check.status as CheckStatus) || 'warning';
                           const cfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.warning;
                           const showRisk = statusKey === 'fail' || statusKey === 'warning';
@@ -218,7 +220,7 @@ export function StandardsReportPanel({
               </tr>
             </thead>
             <tbody>
-              {pagedTechs.map((t: any, i: number) => (
+              {pagedTechs.map((t: Technology, i: number) => (
                 <tr key={i} className={i % 2 === 0 ? 'wap-row-even' : 'wap-row-odd'}>
                   <td className="wap-icon-cell">
                     <div className="wap-icon-wrapper">
@@ -233,7 +235,7 @@ export function StandardsReportPanel({
                     {t.version && <span className="wap-tech-version"> {t.version}</span>}
                   </td>
                   <td className="wap-cat-cell">
-                    {(t.categories || []).map((c: any) => c.name).join(', ') || 'Other'}
+                    {(t.categories || []).map((c) => c.name).join(', ') || 'Other'}
                   </td>
                 </tr>
               ))}

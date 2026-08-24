@@ -100,33 +100,39 @@ Use Thai for descriptions, keep technical terms in English.
             ),
         )
 
-    # Persist AI report to database
-    try:
-        # Find the most recent scan for this URL to link to
-        recent_scan = (
-            db.query(Scan)
-            .filter(Scan.url == request.url)
-            .order_by(Scan.created_at.desc())
-            .first()
-        )
+    # Persist AI report to database — wrap sync DB in executor
+    def _persist_ai_report():
+        try:
+            recent_scan = (
+                db.query(Scan)
+                .filter(Scan.url == request.url)
+                .order_by(Scan.created_at.desc())
+                .first()
+            )
 
-        if recent_scan:
-            ai_report = AIReport(
-                scan_id=recent_scan.id,
-                url=request.url,
-                model_name=OLLAMA_MODEL,
-                analysis_text=analysis_text,
-            )
-            db.add(ai_report)
-            db.commit()
-            logger.info(
-                "AI report saved for scan_id=%d, url=%s",
-                recent_scan.id, request.url,
-            )
-    except Exception as e:
-        db.rollback()
-        logger.warning("Failed to persist AI report: %s", e)
-        # Don't fail the request — the analysis was generated successfully
+            if recent_scan:
+                ai_report = AIReport(
+                    scan_id=recent_scan.id,
+                    url=request.url,
+                    model_name=OLLAMA_MODEL,
+                    analysis_text=analysis_text,
+                )
+                db.add(ai_report)
+                db.commit()
+                logger.info(
+                    "AI report saved for scan_id=%d, url=%s",
+                    recent_scan.id, request.url,
+                )
+        except Exception as e:
+            db.rollback()
+            logger.warning("Failed to persist AI report: %s", e)
+
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _persist_ai_report)
+    except Exception:
+        pass  # Don't fail the request — the analysis was generated successfully
 
     return {
         "success": True,
