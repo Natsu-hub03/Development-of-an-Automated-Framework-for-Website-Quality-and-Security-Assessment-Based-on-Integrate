@@ -268,9 +268,9 @@ export default function Home() {
     switch (scanStatus) {
       case 'idle':     return '> READY';
       case 'scanning': return scanType === 'standards'
-        ? '> SCANNING ALL STANDARDS (this may take a few minutes)...'
+        ? '> SCANNING ALL STANDARDS (this may take a minute)...'
         : scanType === 'ncsa'
-        ? '> SCANNING สกมช. (ZAP may take a few minutes)...'
+        ? '> SCANNING สกมช. (NCSA Guidelines)...'
         : '> SCANNING...';
       case 'done':     return '> SCAN COMPLETE';
       case 'error':    return '> ERROR';
