@@ -667,12 +667,66 @@
 .dash-checklist-status-icon {
   flex-shrink: 0;
   font-size: 14px;
+  margin-top: 2px;
+}
+
+.dash-failed-std-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(100, 200, 255, 0.08);
+  border: 1px solid rgba(100, 200, 255, 0.15);
+  color: var(--accent);
+  flex-shrink: 0;
   margin-top: 1px;
+}
+
+.dash-failed-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-failed-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.dash-failed-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dash-failed-name-th {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.dash-failed-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 /* ═══ Evidence Toggle Button ═══ */
 .dash-evidence-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-family: var(--font-mono);
@@ -686,6 +740,7 @@
   cursor: pointer;
   flex-shrink: 0;
   margin-top: 2px;
+  margin-left: auto;
   transition: all var(--dur-fast) var(--ease-out);
 }
 
@@ -1177,13 +1232,6 @@
   box-shadow: 0 0 24px var(--accent-glow), inset 0 0 12px rgba(0, 255, 180, 0.08) !important;
 }
 
-.dash-failed-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 
 .dash-std-counts {
   display: flex;
