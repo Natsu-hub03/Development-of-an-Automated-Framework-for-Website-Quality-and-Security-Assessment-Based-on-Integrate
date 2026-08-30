@@ -81,3 +81,59 @@ export async function executeAiAnalysis(
     clearTimeout(timeoutId);
   }
 }
+
+
+export interface AiBatchItem {
+  check_id: string;
+  check_name: string;
+  check_name_th?: string;
+  status: string;
+  detail: string;
+  evidence?: unknown;
+}
+
+export interface AiBatchResult {
+  ai_risk: string;
+  ai_fix: string;
+}
+
+export interface AiBatchResponse {
+  success?: boolean;
+  results?: Record<string, AiBatchResult>;
+  error?: string;
+}
+
+const DEFAULT_AI_BATCH_TIMEOUT = 300_000; // 5 minutes for batch
+
+export async function executeAiBatchFix(
+  items: AiBatchItem[],
+  timeoutMs = DEFAULT_AI_BATCH_TIMEOUT
+): Promise<AiBatchResponse> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/analyze/ai-batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        error: errBody.detail || `AI batch error (${res.status}): ${res.statusText}`,
+      };
+    }
+
+    return await res.json();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { error: 'AI batch analysis timed out' };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}

@@ -965,6 +965,48 @@
   margin-right: 4px;
 }
 
+/* ── AI Shimmer Loading ────────────────────────────────────────────── */
+.dash-ai-shimmer {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(0, 255, 136, 0.12) 40%,
+    rgba(255, 255, 255, 0.04) 80%
+  );
+  background-size: 300% 100%;
+  animation: dash-shimmer-sweep 2s ease-in-out infinite;
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+  font-size: 11px;
+}
+
+@keyframes dash-shimmer-sweep {
+  0% { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
+}
+
+/* ── AI Badge ──────────────────────────────────────────────────────── */
+.dash-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  margin-right: 2px;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--color-neon);
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .dash-item-actions {
   display: flex;
   align-items: center;
@@ -1516,6 +1558,16 @@
 
   .dash-evidence-pre code {
     color: #0f172a !important;
+  }
+
+  .dash-ai-shimmer {
+    display: none !important;
+  }
+
+  .dash-ai-badge {
+    background: #ecfdf5 !important;
+    border: 1px solid #6ee7b7 !important;
+    color: #047857 !important;
   }
 
   * {
