@@ -37,6 +37,19 @@ class CheckAIFixRequest(BaseModel):
     evidence: Optional[Any] = None
 
 
+class BatchCheckItem(BaseModel):
+    check_id: str
+    check_name: str
+    check_name_th: Optional[str] = None
+    status: str
+    detail: str
+    evidence: Optional[Any] = None
+
+
+class BatchAIFixRequest(BaseModel):
+    items: list[BatchCheckItem]
+
+
 @router.post("/analyze/ai")
 async def analyze_with_ai(
     request: AIAnalyzeRequest,
@@ -197,3 +210,99 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
             status_code=503,
             detail=f"Ollama not reachable: {str(e)}"
         )
+
+
+@router.post("/analyze/ai-batch")
+async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
+    """
+    Batch-analyze multiple failed/warning checklist items.
+    Processes sequentially through Ollama, returns ai_risk + ai_fix per item.
+    """
+    if not request.items:
+        return {"success": True, "results": {}}
+
+    try:
+        client = ollama.Client(host=OLLAMA_BASE_URL)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Ollama not reachable at {OLLAMA_BASE_URL}",
+        )
+
+    results: dict[str, dict[str, str]] = {}
+
+    for item in request.items:
+        evidence_str = ""
+        if item.evidence:
+            try:
+                evidence_str = json.dumps(item.evidence, ensure_ascii=False, indent=2)[:1500]
+            except Exception:
+                evidence_str = str(item.evidence)[:1500]
+
+        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้าน Web Security, Accessibility และ Performance
+
+วิเคราะห์ผลตรวจสอบนี้ให้กระชับ ตรงประเด็น ตอบจากข้อมูลจริงที่ตรวจพบ:
+- รหัส: {item.check_id}
+- รายการ: {item.check_name} ({item.check_name_th or ''})
+- สถานะ: {item.status}
+- ปัญหาที่พบ: {item.detail}
+- หลักฐาน (Evidence):
+{evidence_str or 'ไม่มี evidence เฉพาะจุด'}
+
+ตอบเป็นภาษาไทยเท่านั้น ในรูปแบบนี้เท่านั้น (ไม่ต้องมีหัวข้ออื่น):
+
+⚡ ความเสี่ยง: [อธิบาย 1-3 ประโยค ว่าปัญหานี้ส่งผลกระทบอะไรต่อเว็บไซต์นี้โดยเฉพาะ อ้างอิงจาก evidence ที่ตรวจพบจริง]
+
+💡 วิธีแก้: [อธิบาย 1-3 ประโยค ว่าควรแก้ไขอย่างไร ให้ตัวอย่างโค้ดหรือ config สั้นๆ ถ้าเป็นไปได้]"""
+
+        try:
+            response = client.generate(
+                model=OLLAMA_MODEL,
+                prompt=prompt,
+                options={
+                    "num_ctx": 4096,
+                    "num_predict": 512,
+                    "temperature": 0.4,
+                },
+            )
+            raw_text = response.response.strip()
+
+            # Parse AI response into risk + fix sections
+            ai_risk = ""
+            ai_fix = ""
+
+            if "⚡" in raw_text and "💡" in raw_text:
+                parts = raw_text.split("💡")
+                risk_part = parts[0]
+                fix_part = parts[1] if len(parts) > 1 else ""
+
+                # Clean up risk
+                ai_risk = risk_part.replace("⚡", "").strip()
+                for prefix in ["ความเสี่ยง:", "ความเสี่ยง :"]:
+                    if ai_risk.startswith(prefix):
+                        ai_risk = ai_risk[len(prefix):].strip()
+
+                # Clean up fix
+                ai_fix = fix_part.strip()
+                for prefix in ["วิธีแก้:", "วิธีแก้ :", "วิธีแก้ไข:", "วิธีแก้ไข :"]:
+                    if ai_fix.startswith(prefix):
+                        ai_fix = ai_fix[len(prefix):].strip()
+            else:
+                # Fallback: use entire response as risk
+                ai_risk = raw_text
+                ai_fix = ""
+
+            results[item.check_id] = {
+                "ai_risk": ai_risk,
+                "ai_fix": ai_fix,
+            }
+            logger.info("AI batch: analyzed %s", item.check_id)
+
+        except Exception as e:
+            logger.warning("AI batch: failed for %s: %s", item.check_id, e)
+            results[item.check_id] = {
+                "ai_risk": "",
+                "ai_fix": "",
+            }
+
+    return {"success": True, "results": results}
