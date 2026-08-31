@@ -70,7 +70,7 @@ Use Thai for descriptions, keep technical terms in English.
 """
 
     try:
-        client = ollama.Client(host=OLLAMA_BASE_URL)
+        client = ollama.Client(host=OLLAMA_BASE_URL, timeout=180.0)
         response = client.generate(
             model=OLLAMA_MODEL,
             prompt=prompt,
@@ -172,7 +172,7 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
 """
 
     try:
-        client = ollama.Client(host=OLLAMA_BASE_URL)
+        client = ollama.Client(host=OLLAMA_BASE_URL, timeout=180.0)
         response = client.generate(
             model=OLLAMA_MODEL,
             prompt=prompt,
