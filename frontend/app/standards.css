@@ -246,7 +246,7 @@
 
 .checklist-item-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--text-primary);
   display: flex;
   align-items: center;
@@ -256,30 +256,31 @@
 
 .checklist-item-id {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   font-weight: 400;
 }
 
 .checklist-item-name-th {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-secondary);
   margin-top: 1px;
 }
 
 .checklist-item-detail {
-  font-size: 12px;
+  font-size: 14.5px;
   color: var(--text-muted);
   margin-top: 4px;
   font-family: var(--font-mono);
   word-break: break-word;
+  line-height: 1.55;
 }
 
 .checklist-status-badge {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: var(--radius-pill);
   flex-shrink: 0;
 }
@@ -302,12 +303,13 @@
 /* --- Risk / Remediation Guidance Block --- */
 .checklist-risk-block {
   margin-top: 8px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 14.5px;
+  line-height: 1.6;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .checklist-risk-block.risk-fail {
@@ -323,18 +325,18 @@
 .checklist-risk-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .checklist-risk-icon {
-  font-size: 13px;
+  font-size: 15px;
   flex-shrink: 0;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .checklist-risk-label {
   font-weight: 600;
-  font-size: 11px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-secondary);
@@ -342,7 +344,8 @@
 
 .checklist-risk-text {
   color: var(--text-secondary);
-  line-height: 1.5;
+  font-size: 14.5px;
+  line-height: 1.6;
 }
 
 /* ============================================================

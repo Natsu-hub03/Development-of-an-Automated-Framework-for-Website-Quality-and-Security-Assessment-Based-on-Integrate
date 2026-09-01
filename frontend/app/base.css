@@ -45,14 +45,18 @@ html {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'PK Maehongson', var(--font-sans);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 16.5px;
+  line-height: 1.65;
+  letter-spacing: 0.012em;
 }
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'PK Maehongson', var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.7;
+  letter-spacing: 0.012em;
   min-height: 100vh;
   overflow-x: hidden;
 }
