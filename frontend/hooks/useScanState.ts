@@ -216,10 +216,10 @@ export function useScanState(): UseScanStateReturn {
         );
       } catch { /* ignore quota errors */ }
 
-      // ── Await AI batch: pre-compute for Dashboard ─────────────────
-      // Show scan results immediately, switch status to 'analyzing'
-      setScanStatus('analyzing');
+      setAiBatchReady(true);
+      setScanStatus('done');
 
+      // ── Non-blocking background AI batch pre-computation ─────────────────
       const reportData = unwrapReportData(data);
       if (reportData?.standards) {
         const allFailed = extractChecks(reportData.standards, 'fail');
@@ -234,8 +234,8 @@ export function useScanState(): UseScanStateReturn {
             detail: item.detail,
             evidence: item.evidence,
           }));
-          try {
-            const response = await executeAiBatchFix(batchItems);
+          // Run in background without awaiting
+          executeAiBatchFix(batchItems).then((response) => {
             if (response.success && response.results) {
               try {
                 localStorage.setItem(
@@ -244,14 +244,9 @@ export function useScanState(): UseScanStateReturn {
                 );
               } catch { /* ignore quota errors */ }
             }
-          } catch {
-            // AI not available — continue without it
-          }
+          }).catch(() => { /* ignore */ });
         }
       }
-
-      setAiBatchReady(true);
-      setScanStatus('done');
     } catch (err) {
       console.error(err);
       setResult({ error: 'ไม่สามารถเชื่อมต่อกับ Backend ได้ กรุณาตรวจสอบว่า Server กำลังทำงานอยู่' });
