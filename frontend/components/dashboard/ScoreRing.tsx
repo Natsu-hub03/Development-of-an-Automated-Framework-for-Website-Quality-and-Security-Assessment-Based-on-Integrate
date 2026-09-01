@@ -21,7 +21,7 @@ export function ScoreRing({ passRate, grade }: ScoreRingProps) {
           <div className="dash-score-value">
             {passRate}<span className="dash-score-unit">%</span>
           </div>
-          <div className="dash-score-label">compliance</div>
+          <div className="dash-score-label">คะแนนตามมาตรฐาน</div>
           <div className={`dash-score-grade ${grade.cls}`}>
             {grade.label}
           </div>

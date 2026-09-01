@@ -12,7 +12,7 @@ export function TechStackGrid({ technologies }: TechStackGridProps) {
   return (
     <div className="dash-section">
       <div className="dash-section-title">
-        // 🛠 detected technologies ({technologies.length})
+        // 🛠 เทคโนโลยีและไลบรารีที่ตรวจพบ ({technologies.length})
       </div>
       <div className="dash-tech-grid">
         {technologies.map((tech, i) => {

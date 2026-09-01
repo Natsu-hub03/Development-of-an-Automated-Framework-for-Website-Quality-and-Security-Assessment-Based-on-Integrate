@@ -1,17 +1,16 @@
 """
-AI Analysis endpoint: POST /analyze/ai
-
-Sends scan results to Ollama (local LLM) for security analysis.
-Persists the AI report to Postgres for later retrieval.
+AI Analysis endpoints:
+- POST /analyze/ai: High-accuracy, grounded security analysis & report generation.
+- POST /analyze/ai-fix: Actionable step-by-step code fixes for specific checklist items.
 """
 import json
 import logging
+from typing import Any, Optional, Dict, List
 
 import ollama
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Any, Optional
 
 from app.config import OLLAMA_BASE_URL, OLLAMA_MODEL, MAX_JSON_CHARS
 from db.database import get_db
@@ -37,36 +36,145 @@ class CheckAIFixRequest(BaseModel):
     evidence: Optional[Any] = None
 
 
+def extract_grounded_scan_facts(scan_data: Any, max_chars: int = 3500) -> str:
+    """
+    Extract factual findings cleanly from scan_data without breaking JSON or overflowing context.
+    Prevents hallucination by feeding structured, unambiguous facts to the model.
+    """
+    if isinstance(scan_data, dict):
+        data = scan_data.get("data", scan_data) if isinstance(scan_data.get("data"), dict) else scan_data
+
+        lines: List[str] = []
+
+        # 1. Summary Counts
+        summary = data.get("summary")
+        if isinstance(summary, dict):
+            lines.append(
+                f"📊 สรุปผลการตรวจสอบ: ทั้งหมด {summary.get('total', 0)} รายการ "
+                f"| ผ่าน: {summary.get('passed', 0)} "
+                f"| ไม่ผ่าน: {summary.get('failed', 0)} "
+                f"| เฝ้าระวัง: {summary.get('warning', 0)}"
+            )
+
+        # 2. Detected Technologies
+        techs = data.get("wappalyzer_technologies") or data.get("technologies") or []
+        if isinstance(techs, list) and techs:
+            tech_items = []
+            for t in techs:
+                if isinstance(t, dict):
+                    name = t.get("name", "")
+                    ver = t.get("version")
+                    tech_items.append(f"{name} (v{ver})" if ver else name)
+                elif isinstance(t, str):
+                    tech_items.append(t)
+            if tech_items:
+                lines.append(f"🛠️ เทคโนโลยีและไลบรารีที่ตรวจพบ: {', '.join(tech_items)}")
+
+        # 3. Failed & Warning Checklist Items
+        standards = data.get("standards")
+        if isinstance(standards, list):
+            failed_items: List[str] = []
+            warning_items: List[str] = []
+            passed_items: List[str] = []
+
+            for std in standards:
+                if not isinstance(std, dict):
+                    continue
+                std_name = std.get("name", "Standard")
+                for cat in std.get("categories", []):
+                    if not isinstance(cat, dict):
+                        continue
+                    for check in cat.get("checks", []):
+                        if not isinstance(check, dict):
+                            continue
+                        status = check.get("status")
+                        chk_name = check.get("name_th") or check.get("name") or check.get("id")
+                        detail = check.get("detail", "").strip()
+
+                        if status == "fail":
+                            detail_str = f" - สาเหตุ: {detail}" if detail else ""
+                            failed_items.append(f"[{std_name}] ❌ {chk_name}{detail_str}")
+                        elif status == "warning":
+                            detail_str = f" - ข้อสังเกต: {detail}" if detail else ""
+                            warning_items.append(f"[{std_name}] ⚠️ {chk_name}{detail_str}")
+                        elif status == "pass":
+                            passed_items.append(f"[{std_name}] ✅ {chk_name}")
+
+            if failed_items:
+                lines.append("\n❌ รายการที่ไม่ผ่านการทดสอบ (Failed Checks):")
+                lines.extend(f"  • {item}" for item in failed_items)
+
+            if warning_items:
+                lines.append("\n⚠️ รายการที่พบข้อสังเกต/ควรเฝ้าระวัง (Warnings):")
+                lines.extend(f"  • {item}" for item in warning_items)
+
+        # 4. Direct ZAP Alerts (if raw zap data passed)
+        zap_alerts = data.get("alerts") or data.get("zap_alerts")
+        if isinstance(zap_alerts, list) and zap_alerts:
+            lines.append("\n🛡️ ช่องโหว่ที่ ZAP ตรวจพบ (ZAP Alerts):")
+            for alert in zap_alerts[:10]:
+                if isinstance(alert, dict):
+                    risk = alert.get("risk", "Info")
+                    name = alert.get("alert", alert.get("name", "Alert"))
+                    lines.append(f"  • [{risk}] {name}")
+
+        if lines:
+            text = "\n".join(lines)
+            if len(text) > max_chars:
+                return text[:max_chars] + "\n...(ข้อมูลส่วนที่เหลือถูกตัดเนื่องจากขนาดยาวเกินกำหนด)"
+            return text
+
+    # Fallback to safely truncated json
+    try:
+        raw_json = json.dumps(scan_data, ensure_ascii=False, indent=2)
+        if len(raw_json) > max_chars:
+            return raw_json[:max_chars] + "\n... (truncated)"
+        return raw_json
+    except Exception:
+        return str(scan_data)[:max_chars]
+
+
 @router.post("/analyze/ai")
 async def analyze_with_ai(
     request: AIAnalyzeRequest,
     db: Session = Depends(get_db),
 ):
     """
-    Send scan results to Ollama (local LLM) for security analysis.
-    Returns a structured markdown report and persists it to the database.
+    Send structured scan results to Ollama (local LLM) for grounded, factual security analysis.
+    Returns a markdown report strictly based on observed findings.
     """
-    # Build prompt — truncate scan data to avoid context overflow on small models
-    scan_json = json.dumps(request.scan_data, ensure_ascii=False, indent=2)
-    if len(scan_json) > MAX_JSON_CHARS:
-        scan_json = scan_json[:MAX_JSON_CHARS] + "\n... (truncated)"
+    grounded_data = extract_grounded_scan_facts(request.scan_data, max_chars=MAX_JSON_CHARS)
 
-    prompt = f"""You are an expert web application security analyst.
+    prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านความปลอดภัยของเว็บแอปพลิเคชัน (Senior Web Application Security Analyst)
 
-Analyze the following scan results for the website: {request.url}
-Scan type: {request.scan_type}
+กรุณาวิเคราะห์ผลการตรวจสอบเว็บไซต์ต่อไปนี้อย่างแม่นยำและเป็นกลาง:
+- URL เป้าหมาย: {request.url}
+- ประเภทการสแกน: {request.scan_type}
 
-Scan data:
-{scan_json}
+ข้อมูลผลการตรวจสอบจริง (Scan Data):
+{grounded_data}
 
-Provide a security analysis report in markdown with these sections:
-1. Executive Summary (2-3 sentences)
-2. Detected Technologies and security implications
-3. Vulnerabilities and Risks (Risk Level, Issue, Impact, Recommendation)
-4. Top 5 Security Recommendations
-5. Overall Risk Score 1-10 with justification
+กฎสำคัญสำหรับการวิเคราะห์ (Strict Factual Grounding Rules):
+1. ยึดตาม "ข้อมูลผลการตรวจสอบจริงข้างต้นเท่านั้น" ห้ามกุขึ้นมาเองหรือคาดเดาช่องโหว่ที่ไม่มีในผลสแกน (ห้าม Hallucinate เช่น ห้ามอ้างว่ามี SQL Injection, XSS, หรือ RCE หากผลสแกนไม่ได้ระบุว่าตรวจพบ)
+2. หากเทคโนโลยีใดไม่มีการระบุเวอร์ชัน ให้ระบุว่า "ไม่ระบุเวอร์ชัน" ห้ามเดาเวอร์ชันหรือเดาหมายเลข CVE
+3. ประเมินระดับความเสี่ยง (Risk Score 1-10) ให้สอดคล้องกับจำนวนและความรุนแรงของรายการที่ไม่ผ่านจริง
+4. เขียนเนื้อหาเป็นภาษาไทยที่กระชับ ชัดเจน เข้าใจง่าย คงคำศัพท์เทคนิคเป็นภาษาอังกฤษตามมาตรฐาน
 
-Use Thai for descriptions, keep technical terms in English.
+กรุณาจัดรูปแบบรายงานเป็น Markdown ตามโครงสร้างดังนี้:
+### 1. 📋 บทสรุปสำหรับผู้บริหาร (Executive Summary)
+(สรุปภาพรวมสถานะความปลอดภัยของเว็บไซต์ 2-3 ประโยค จากผลการตรวจจริง)
+
+### 2. 🛠️ เทคโนโลยีที่ตรวจพบและความเสี่ยงที่เกี่ยวข้อง (Detected Technologies)
+(วิเคราะห์เทคโนโลยีที่พบและข้อควรระวังตามผลสแกน)
+
+### 3. ⚠️ ปัญหาและความเสี่ยงด้านความปลอดภัยที่ตรวจพบ (Identified Security Issues)
+(ระบุรายการปัญหาที่ 'ไม่ผ่าน' หรือ 'เตือน' พร้อมระดับความเสี่ยง Risk Level, ผลกระทบ Impact, และแนวทางแก้ไข)
+
+### 4. 🎯 5 คำแนะนำสำคัญเร่งด่วน (Top 5 Actionable Recommendations)
+(ข้อเสนอแนะ 5 ข้อที่เป็นรูปธรรมและแก้ไขปัญหาที่ตรวจพบข้างต้นได้ตรงจุด)
+
+### 5. 📊 ระดับความเสี่ยงโดยรวม (Overall Risk Score)
+(ให้คะแนน 1-10 พร้อมเหตุผลประกอบที่อิงจากรายการที่ไม่ผ่าน)
 """
 
     try:
@@ -77,7 +185,8 @@ Use Thai for descriptions, keep technical terms in English.
             options={
                 "num_ctx": 4096,
                 "num_predict": 1024,
-                "temperature": 0.7,
+                "temperature": 0.15,  # Low temperature for deterministic, factual output
+                "top_p": 0.9,
             },
         )
         analysis_text = response.response
@@ -145,7 +254,7 @@ Use Thai for descriptions, keep technical terms in English.
 @router.post("/analyze/ai-fix")
 async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
     """
-    Generate actionable step-by-step fix recommendations in Thai for a specific checklist item.
+    Generate accurate, actionable step-by-step fix recommendations in Thai for a specific checklist item.
     """
     evidence_str = ""
     if request.evidence:
@@ -156,7 +265,7 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
 
     prompt = f"""คุณเป็นผู้เชี่ยวชาญระดับ Senior ด้าน Web Accessibility (WCAG 2.1), Web Performance (Core Web Vitals), และ Web Security (OWASP & มาตรฐาน สกมช.)
 
-กรุณาวิเคราะห์และให้คำแนะนำวิธีแก้ไขสำหรับรายการตรวจสอบต่อไปนี้:
+กรุณาวิเคราะห์และให้คำแนะนำวิธีแก้ไขสำหรับรายการตรวจสอบต่อไปนี้โดยอิงตามข้อเท็จจริงและมาตรฐานสากล:
 - รหัสตรวจสอบ: {request.check_id}
 - ชื่อรายการ: {request.check_name} ({request.check_name_th or ''})
 - สถานะปัจจุบัน: {request.status}
@@ -165,10 +274,15 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
 - ข้อมูลหลักฐานโค้ดที่พบ (Evidence):
 {evidence_str or 'ไม่มีข้อมูล snippet เฉพาะจุด'}
 
-กรุณาตอบเป็นภาษาไทยแบบกระชับ ชัดเจน เข้าใจง่าย และตรงประเด็น โดยจัดรูปแบบ Markdown ดังนี้:
-1. 🔍 **สาเหตุของปัญหา**: สรุปสั้นๆ ว่าทำไมถึงไม่ผ่าน
-2. 💡 **วิธีแก้ไขทีละขั้นตอน (Step-by-step)**: ข้อ 1, 2, 3 สั้นกระชับ
-3. 💻 **ตัวอย่างโค้ดที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config หรือ JS ที่แก้ไขเสร็จแล้ว
+กฎการตอบ:
+1. ตอบตรงประเด็น ให้คำแนะนำที่ถูกต้องและใช้แก้ไขได้จริงตามมาตรฐาน
+2. ห้ามแต่งเติมข้อมูลที่ไม่มีอยู่จริง
+3. ให้ตัวอย่างโค้ดที่ถูกต้องและปลอดภัย
+
+กรุณาตอบเป็นภาษาไทยแบบกระชับ ชัดเจน และจัดรูปแบบ Markdown ดังนี้:
+1. 🔍 **สาเหตุของปัญหา**: สรุปสั้นๆ 1-2 ประโยคว่าทำไมถึงไม่ผ่าน
+2. 💡 **วิธีแก้ไขทีละขั้นตอน (Step-by-step)**: ข้อ 1, 2, 3 ชัดเจนและนำไปทำตามได้ทันที
+3. 💻 **ตัวอย่างโค้ดที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config หรือ JS ที่แก้ไขแล้วพร้อมคำอธิบายสั้นๆ
 """
 
     try:
@@ -179,7 +293,8 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
             options={
                 "num_ctx": 4096,
                 "num_predict": 1024,
-                "temperature": 0.5,
+                "temperature": 0.15,  # Deterministic fix suggestions
+                "top_p": 0.9,
             },
         )
         return {
@@ -197,3 +312,4 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
             status_code=503,
             detail=f"Ollama not reachable: {str(e)}"
         )
+

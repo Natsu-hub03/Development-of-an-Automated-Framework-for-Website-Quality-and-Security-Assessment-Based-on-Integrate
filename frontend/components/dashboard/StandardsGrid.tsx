@@ -18,7 +18,7 @@ export function StandardsGrid({
 }: StandardsGridProps) {
   return (
     <div className="dash-section">
-      <div className="dash-section-title">// per-standard breakdown</div>
+      <div className="dash-section-title">// สรุปผลแยกตามแต่ละมาตรฐาน</div>
       <div className="dash-standards-grid">
         {standards.map((std) => {
           const stdPassRate = std.total > 0

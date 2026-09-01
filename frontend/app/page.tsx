@@ -45,7 +45,7 @@ export default function Home() {
         <main id="main-content">
           <section className="scanner-card fade-in-delay-2" aria-label="URL Scanner">
             <label htmlFor="url-input" className="scanner-label">
-              // Target URL
+              // ระบุ URL เป้าหมาย (Target URL)
             </label>
 
             <div className="scan-type-selector" id="scan-type-selector" role="group" aria-label="Scan type">
@@ -110,7 +110,7 @@ export default function Home() {
                 aria-label={scan.loading ? 'กำลังสแกน' : 'เริ่มสแกน'}
               >
                 {scan.loading && <span className="spinner" aria-hidden="true" />}
-                {scan.loading ? 'SCANNING...' : '► RUN SCAN'}
+                {scan.loading ? 'กำลังสแกน...' : '► เริ่มสแกน'}
               </button>
             </div>
 
@@ -130,13 +130,13 @@ export default function Home() {
             {scan.showResult && (
               <div className="results-wrapper" id="scan-results">
                 <div className="results-header">
-                  <span className="results-title">// OUTPUT</span>
+                  <span className="results-title">// ผลการตรวจสอบ (OUTPUT)</span>
                   <button
                     onClick={scan.handleReset}
                     className="dash-action-btn results-clear-btn"
                     title="ล้างผลการสแกนและเริ่มใหม่"
                   >
-                    ✕ CLEAR / ล้างผล
+                    ✕ ล้างผลสแกน
                   </button>
                 </div>
 
@@ -155,7 +155,7 @@ export default function Home() {
                     id="view-dashboard-button"
                     className="scan-btn dashboard-link-btn"
                   >
-                    📊 VIEW DASHBOARD
+                    📊 ดูแดชบอร์ดสรุปผล
                   </Link>
                   <button
                     id="ai-analyze-button"
@@ -165,8 +165,8 @@ export default function Home() {
                     aria-label="วิเคราะห์ด้วย AI"
                   >
                     {ai.aiLoading
-                      ? <><span className="spinner spinner--dark" aria-hidden="true" /> ANALYZING...</>
-                      : <>✦ AI SECURITY ANALYSIS</>
+                      ? <><span className="spinner spinner--dark" aria-hidden="true" /> กำลังวิเคราะห์...</>
+                      : <>✦ วิเคราะห์ความปลอดภัยด้วย AI</>
                     }
                   </button>
                   {ai.aiResult && (

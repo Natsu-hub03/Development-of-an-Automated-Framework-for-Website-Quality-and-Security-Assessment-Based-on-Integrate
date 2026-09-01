@@ -41,8 +41,8 @@ export function scoreColorClass(score: number | null): string {
 }
 
 export function getGrade(pct: number): { label: string; cls: string } {
-  if (pct >= 90) return { label: 'Excellent', cls: 'grade-excellent' };
-  if (pct >= 70) return { label: 'Good', cls: 'grade-good' };
-  if (pct >= 50) return { label: 'Fair', cls: 'grade-fair' };
-  return { label: 'Needs Work', cls: 'grade-poor' };
+  if (pct >= 90) return { label: 'ดีเยี่ยม', cls: 'grade-excellent' };
+  if (pct >= 70) return { label: 'ดี', cls: 'grade-good' };
+  if (pct >= 50) return { label: 'พอใช้', cls: 'grade-fair' };
+  return { label: 'ต้องปรับปรุง', cls: 'grade-poor' };
 }

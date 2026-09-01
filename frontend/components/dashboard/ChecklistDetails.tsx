@@ -63,7 +63,7 @@ export function ChecklistDetails({
   return (
     <div className="dash-section" id="checklist-details-section">
       <div className="dash-section-header-row">
-        <div className="dash-section-title">// checklist details</div>
+        <div className="dash-section-title">// รายละเอียดรายการตรวจสอบทั้งหมด</div>
         {activeStdObj && (
           <div className="dash-active-std-pill">
             <span>

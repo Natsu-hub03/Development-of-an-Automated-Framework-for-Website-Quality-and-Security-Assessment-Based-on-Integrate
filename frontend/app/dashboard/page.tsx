@@ -119,7 +119,7 @@ export default function DashboardPage() {
           </Link>
           <div className="navbar-right">
             <div className="navbar-status-dot" aria-hidden="true" />
-            <span>DASHBOARD</span>
+            <span>แดชบอร์ด</span>
             <span className="navbar-badge">v1.0</span>
           </div>
         </nav>
@@ -129,7 +129,7 @@ export default function DashboardPage() {
           <header className="dash-header fade-in">
             <div className="dash-header-left">
               <h1 className="dash-title">
-                Scan <span className="dash-title-accent">Dashboard</span>
+                แดชบอร์ด <span className="dash-title-accent">สรุปผลการประเมิน</span>
               </h1>
               {url && <div className="dash-url">{url}</div>}
               {formattedTime && <div className="dash-timestamp">🕐 {formattedTime}</div>}
@@ -140,10 +140,10 @@ export default function DashboardPage() {
                 onClick={() => window.print()}
                 aria-label="พิมพ์รายงาน"
               >
-                🖨️ PRINT
+                🖨️ พิมพ์รายงาน
               </button>
               <Link href="/" className="dash-back-btn">
-                ◄ BACK TO SCANNER
+                ◄ กลับไปหน้าสแกน
               </Link>
             </div>
           </header>
