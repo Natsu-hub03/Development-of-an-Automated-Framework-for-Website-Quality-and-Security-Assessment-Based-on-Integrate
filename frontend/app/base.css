@@ -32,6 +32,10 @@
   padding: 0;
 }
 
+button, input, select, textarea {
+  font-family: inherit;
+}
+
 /* ===== Root Typography (interface-kit: smoothing at root) ===== */
 html {
   -webkit-font-smoothing: antialiased;

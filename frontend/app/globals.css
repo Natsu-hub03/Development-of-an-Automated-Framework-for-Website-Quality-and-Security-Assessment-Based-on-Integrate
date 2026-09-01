@@ -8,6 +8,39 @@
 @import './standards.css';
 @import './dashboard.css';
 
+/* ===== Custom Font: PK Maehongson ===== */
+@font-face {
+  font-family: 'PK Maehongson';
+  src: url('/fonts/PK-Maehongson-Medium.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PK Maehongson';
+  src: url('/fonts/PK-Maehongson-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PK Maehongson';
+  src: url('/fonts/PK-Maehongson-Medium.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PK Maehongson';
+  src: url('/fonts/PK-Maehongson-Medium.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ===== Navbar ===== */
 .navbar {
   position: sticky;
