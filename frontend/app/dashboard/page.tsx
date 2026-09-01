@@ -57,10 +57,27 @@ export default function DashboardPage() {
   }, []);
 
   // Auto-trigger AI batch analysis for failed/warning items
+  // Reads from localStorage cache first (pre-computed during scan)
   const triggerAiBatch = useCallback(async (reportData: StandardsReportData) => {
     if (aiBatchTriggered.current) return;
     aiBatchTriggered.current = true;
 
+    // ── 1. Try cached results from localStorage (pre-computed during scan) ──
+    try {
+      const cached = localStorage.getItem('webscan_ai_batch_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const cachedUrl = (parsed.url || '').trim().replace(/\/+$/, '').toLowerCase();
+        const dataUrl = (reportData.url || '').trim().replace(/\/+$/, '').toLowerCase();
+        if (cachedUrl === dataUrl && parsed.results && Object.keys(parsed.results).length > 0) {
+          setAiFixMap(parsed.results);
+          // Already done — no loading, no API call
+          return;
+        }
+      }
+    } catch { /* ignore parse errors */ }
+
+    // ── 2. Fallback: call API if no cache available ─────────────────────
     const allFailed = extractChecks(reportData.standards ?? [], 'fail');
     const allWarning = extractChecks(reportData.standards ?? [], 'warning');
     const itemsToAnalyze = [...allFailed, ...allWarning];
@@ -81,6 +98,13 @@ export default function DashboardPage() {
       const response = await executeAiBatchFix(batchItems);
       if (response.success && response.results) {
         setAiFixMap(response.results);
+        // Cache for future visits
+        try {
+          localStorage.setItem(
+            'webscan_ai_batch_cache',
+            JSON.stringify({ url: reportData.url, results: response.results })
+          );
+        } catch { /* ignore quota errors */ }
       }
     } catch {
       // AI not available — fallback to static text
