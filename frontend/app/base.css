@@ -25,15 +25,16 @@
   outline-offset: 2px;
 }
 
-/* ===== Reset ===== */
+/* ===== Reset & Universal Font ===== */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-family: 'PK Maehongson', var(--font-sans);
 }
 
-button, input, select, textarea {
-  font-family: inherit;
+html, body, button, input, select, textarea, a, span, p, h1, h2, h3, h4, h5, h6, div, label, code, pre, small, strong, em, table, th, td {
+  font-family: 'PK Maehongson', var(--font-sans);
 }
 
 /* ===== Root Typography (interface-kit: smoothing at root) ===== */
@@ -43,14 +44,15 @@ html {
   text-rendering: optimizeLegibility;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 14px;
+  font-family: 'PK Maehongson', var(--font-sans);
+  font-size: 15px;
   line-height: 1.6;
 }
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
+  font-family: 'PK Maehongson', var(--font-sans);
   min-height: 100vh;
   overflow-x: hidden;
 }
