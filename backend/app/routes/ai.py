@@ -2,6 +2,7 @@
 AI Analysis endpoints:
 - POST /analyze/ai: High-accuracy, grounded security analysis & report generation.
 - POST /analyze/ai-fix: Actionable step-by-step code fixes for specific checklist items.
+- POST /analyze/ai-batch: Batch-analyze multiple checklist items for dashboard integration.
 """
 import json
 import logging
@@ -34,6 +35,19 @@ class CheckAIFixRequest(BaseModel):
     detail: str
     why_th: Optional[str] = None
     evidence: Optional[Any] = None
+
+
+class BatchCheckItem(BaseModel):
+    check_id: str
+    check_name: str
+    check_name_th: Optional[str] = None
+    status: str
+    detail: str
+    evidence: Optional[Any] = None
+
+
+class BatchAIFixRequest(BaseModel):
+    items: list[BatchCheckItem]
 
 
 def extract_grounded_scan_facts(scan_data: Any, max_chars: int = 3500) -> str:
@@ -145,7 +159,8 @@ async def analyze_with_ai(
     """
     grounded_data = extract_grounded_scan_facts(request.scan_data, max_chars=MAX_JSON_CHARS)
 
-    prompt = f"""คุณเป็นผู้เชี่ยวชาญด้านความปลอดภัยของเว็บแอปพลิเคชัน (Senior Web Application Security Analyst)
+    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity และ Web Application Security ที่มีใบรับรอง OSCP, CISSP
+เชี่ยวชาญ OWASP Top 10, CWE/CVE taxonomy, NIST Cybersecurity Framework และมาตรฐานความปลอดภัย สกมช.
 
 กรุณาวิเคราะห์ผลการตรวจสอบเว็บไซต์ต่อไปนี้อย่างแม่นยำและเป็นกลาง:
 - URL เป้าหมาย: {request.url}
@@ -171,7 +186,7 @@ async def analyze_with_ai(
 (ระบุรายการปัญหาที่ 'ไม่ผ่าน' หรือ 'เตือน' พร้อมระดับความเสี่ยง Risk Level, ผลกระทบ Impact, และแนวทางแก้ไข)
 
 ### 4. 🎯 5 คำแนะนำสำคัญเร่งด่วน (Top 5 Actionable Recommendations)
-(ข้อเสนอแนะ 5 ข้อที่เป็นรูปธรรมและแก้ไขปัญหาที่ตรวจพบข้างต้นได้ตรงจุด)
+(ข้อเสนอแนะ 5 ข้อที่เป็นรูปธรรมและแก้ไขปัญหาที่ตรวจพบข้างต้นได้ตรงจุด อ้างอิงตาม OWASP / NIST)
 
 ### 5. 📊 ระดับความเสี่ยงโดยรวม (Overall Risk Score)
 (ให้คะแนน 1-10 พร้อมเหตุผลประกอบที่อิงจากรายการที่ไม่ผ่าน)
@@ -263,7 +278,9 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
         except Exception:
             evidence_str = str(request.evidence)[:1500]
 
-    prompt = f"""คุณเป็นผู้เชี่ยวชาญระดับ Senior ด้าน Web Accessibility (WCAG 2.1), Web Performance (Core Web Vitals), และ Web Security (OWASP & มาตรฐาน สกมช.)
+    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity และ Web Application Security ที่มีใบรับรอง OSCP, CISSP
+เชี่ยวชาญ OWASP Top 10, OWASP ASVS, CWE/CVE taxonomy, NIST Cybersecurity Framework
+รวมถึงมาตรฐาน WCAG 2.1 (Accessibility), Core Web Vitals (Performance) และมาตรฐาน สกมช. (NCSA Thailand)
 
 กรุณาวิเคราะห์และให้คำแนะนำวิธีแก้ไขสำหรับรายการตรวจสอบต่อไปนี้โดยอิงตามข้อเท็จจริงและมาตรฐานสากล:
 - รหัสตรวจสอบ: {request.check_id}
@@ -283,6 +300,7 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
 1. 🔍 **สาเหตุของปัญหา**: สรุปสั้นๆ 1-2 ประโยคว่าทำไมถึงไม่ผ่าน
 2. 💡 **วิธีแก้ไขทีละขั้นตอน (Step-by-step)**: ข้อ 1, 2, 3 ชัดเจนและนำไปทำตามได้ทันที
 3. 💻 **ตัวอย่างโค้ดที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config หรือ JS ที่แก้ไขแล้วพร้อมคำอธิบายสั้นๆ
+4. 🛡️ **คำแนะนำเสริมด้านความปลอดภัย**: ข้อควรระวังเพิ่มเติมตามมาตรฐาน
 """
 
     try:
@@ -313,3 +331,98 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
             detail=f"Ollama not reachable: {str(e)}"
         )
 
+
+@router.post("/analyze/ai-batch")
+async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
+    """
+    Batch-analyze multiple failed/warning checklist items.
+    Processes sequentially through Ollama, returns ai_risk + ai_fix per item.
+    """
+    if not request.items:
+        return {"success": True, "results": {}}
+
+    try:
+        client = ollama.Client(host=OLLAMA_BASE_URL)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Ollama not reachable at {OLLAMA_BASE_URL}",
+        )
+
+    results: dict[str, dict[str, str]] = {}
+
+    for item in request.items:
+        evidence_str = ""
+        if item.evidence:
+            try:
+                evidence_str = json.dumps(item.evidence, ensure_ascii=False, indent=2)[:1500]
+            except Exception:
+                evidence_str = str(item.evidence)[:1500]
+
+        prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity (OSCP/CISSP) เชี่ยวชาญ OWASP Top 10, CWE/CVE, NIST CSF, MITRE ATT&CK
+รวมถึง Web Accessibility (WCAG 2.1) และ Web Performance (Core Web Vitals)
+
+วิเคราะห์ผลตรวจสอบนี้ให้กระชับ ตรงประเด็น ตอบจากข้อมูลจริงที่ตรวจพบ โดยอ้างอิงมาตรฐานสากล:
+- รหัส: {item.check_id}
+- รายการ: {item.check_name} ({item.check_name_th or ''})
+- สถานะ: {item.status}
+- ปัญหาที่พบ: {item.detail}
+- หลักฐาน (Evidence):
+{evidence_str or 'ไม่มี evidence เฉพาะจุด'}
+
+ตอบเป็นภาษาไทยเท่านั้น ในรูปแบบนี้เท่านั้น (ไม่ต้องมีหัวข้ออื่น):
+
+⚡ ความเสี่ยง: [อธิบาย 1-3 ประโยค ว่าปัญหานี้ส่งผลกระทบอะไรต่อเว็บไซต์โดยเฉพาะ อ้างอิง CWE ID, OWASP Category หรือ MITRE ATT&CK Technique ที่เกี่ยวข้อง (ถ้าเป็นด้าน Security) พร้อมระบุ Attack Vector ที่เป็นไปได้]
+
+💡 วิธีแก้: [อธิบาย 1-3 ประโยค ตาม Best Practices จาก OWASP/NIST/WCAG ให้ตัวอย่างโค้ดหรือ config สั้นๆ ถ้าเป็นไปได้]"""
+
+        try:
+            response = client.generate(
+                model=OLLAMA_MODEL,
+                prompt=prompt,
+                options={
+                    "num_ctx": 4096,
+                    "num_predict": 512,
+                    "temperature": 0.2,
+                },
+            )
+            raw_text = response.response.strip()
+
+            # Parse AI response into risk + fix sections
+            ai_risk = ""
+            ai_fix = ""
+
+            if "⚡" in raw_text and "💡" in raw_text:
+                parts = raw_text.split("💡")
+                risk_part = parts[0]
+                fix_part = parts[1] if len(parts) > 1 else ""
+
+                # Clean up risk
+                ai_risk = risk_part.replace("⚡", "").strip()
+                for prefix in ["ความเสี่ยง:", "ความเสี่ยง :"]:
+                    if ai_risk.startswith(prefix):
+                        ai_risk = ai_risk[len(prefix):].strip()
+
+                # Clean up fix
+                ai_fix = fix_part.strip()
+                for prefix in ["วิธีแก้:", "วิธีแก้ :", "วิธีแก้ไข:", "วิธีแก้ไข :"]:
+                    if ai_fix.startswith(prefix):
+                        ai_fix = ai_fix[len(prefix):].strip()
+            else:
+                ai_risk = raw_text
+                ai_fix = ""
+
+            results[item.check_id] = {
+                "ai_risk": ai_risk,
+                "ai_fix": ai_fix,
+            }
+            logger.info("AI batch: analyzed %s", item.check_id)
+
+        except Exception as e:
+            logger.warning("AI batch: failed for %s: %s", item.check_id, e)
+            results[item.check_id] = {
+                "ai_risk": "",
+                "ai_fix": "",
+            }
+
+    return {"success": True, "results": results}

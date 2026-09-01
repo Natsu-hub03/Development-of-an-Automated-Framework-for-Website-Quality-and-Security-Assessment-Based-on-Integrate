@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import type { ScanType, ScanStatus, ScanResultsMap, ScanApiResponse, StandardReport } from '../lib/types';
-import { executeScan } from '../lib/api';
-import { normalizeUrl, unwrapReportData } from '../lib/utils';
+import { executeScan, executeAiBatchFix } from '../lib/api';
+import { normalizeUrl, unwrapReportData, extractChecks } from '../lib/utils';
 
 interface UseScanStateReturn {
   url: string;
@@ -22,6 +22,7 @@ interface UseScanStateReturn {
   getStatusText: () => string;
   getStatusClass: () => string;
   showResult: boolean;
+  aiBatchReady: boolean;
 }
 
 export function useScanState(): UseScanStateReturn {
@@ -33,6 +34,7 @@ export function useScanState(): UseScanStateReturn {
   const [scanType, setScanType]             = useState<ScanType>('standards');
   const [resultsByType, setResultsByType]   = useState<ScanResultsMap>({});
   const [expandedMap, setExpandedMap]       = useState<Record<string, boolean>>({});
+  const [aiBatchReady, setAiBatchReady]     = useState(false);
 
   // Restore state from localStorage on mount
   useEffect(() => {
@@ -76,6 +78,17 @@ export function useScanState(): UseScanStateReturn {
             setLastScannedUrl(targetUrl);
           }
         }
+      }
+
+      // Check if AI batch cache exists for restored state
+      const cachedAi = localStorage.getItem('webscan_ai_batch_cache');
+      if (cachedAi) {
+        try {
+          const parsed = JSON.parse(cachedAi);
+          if (parsed.results && Object.keys(parsed.results).length > 0) {
+            setAiBatchReady(true);
+          }
+        } catch { /* ignore */ }
       }
     } catch {
       // ignore parse errors
@@ -129,6 +142,7 @@ export function useScanState(): UseScanStateReturn {
     setLoading(true);
     setResult(null);
     setScanStatus('scanning');
+    setAiBatchReady(false);
 
     let baseMap: ScanResultsMap = {};
     if (isNewUrl) {
@@ -139,6 +153,7 @@ export function useScanState(): UseScanStateReturn {
         localStorage.removeItem('webscan_results_by_type');
         localStorage.removeItem('webscan_dashboard_data');
         localStorage.removeItem('webscan_state');
+        localStorage.removeItem('webscan_ai_batch_cache');
       } catch { /* ignore */ }
     } else {
       baseMap = { ...resultsByType };
@@ -147,7 +162,6 @@ export function useScanState(): UseScanStateReturn {
     try {
       const data = await executeScan(scanType, trimmedUrl);
       setResult(data);
-      setScanStatus('done');
       setLastScannedUrl(trimmedUrl);
 
       const updatedMap: ScanResultsMap = {
@@ -201,6 +215,43 @@ export function useScanState(): UseScanStateReturn {
           })
         );
       } catch { /* ignore quota errors */ }
+
+      // ── Await AI batch: pre-compute for Dashboard ─────────────────
+      // Show scan results immediately, switch status to 'analyzing'
+      setScanStatus('analyzing');
+
+      const reportData = unwrapReportData(data);
+      if (reportData?.standards) {
+        const allFailed = extractChecks(reportData.standards, 'fail');
+        const allWarning = extractChecks(reportData.standards, 'warning');
+        const itemsToAnalyze = [...allFailed, ...allWarning];
+        if (itemsToAnalyze.length > 0) {
+          const batchItems = itemsToAnalyze.map((item) => ({
+            check_id: item.id,
+            check_name: item.name,
+            check_name_th: item.name_th || undefined,
+            status: item.status,
+            detail: item.detail,
+            evidence: item.evidence,
+          }));
+          try {
+            const response = await executeAiBatchFix(batchItems);
+            if (response.success && response.results) {
+              try {
+                localStorage.setItem(
+                  'webscan_ai_batch_cache',
+                  JSON.stringify({ url: trimmedUrl, results: response.results })
+                );
+              } catch { /* ignore quota errors */ }
+            }
+          } catch {
+            // AI not available — continue without it
+          }
+        }
+      }
+
+      setAiBatchReady(true);
+      setScanStatus('done');
     } catch (err) {
       console.error(err);
       setResult({ error: 'ไม่สามารถเชื่อมต่อกับ Backend ได้ กรุณาตรวจสอบว่า Server กำลังทำงานอยู่' });
@@ -220,6 +271,7 @@ export function useScanState(): UseScanStateReturn {
       localStorage.removeItem('webscan_state');
       localStorage.removeItem('webscan_dashboard_data');
       localStorage.removeItem('webscan_results_by_type');
+      localStorage.removeItem('webscan_ai_batch_cache');
     } catch { /* ignore */ }
   }, []);
 
@@ -229,23 +281,25 @@ export function useScanState(): UseScanStateReturn {
 
   const getStatusText = useCallback(() => {
     switch (scanStatus) {
-      case 'idle':     return '> READY';
-      case 'scanning': return scanType === 'standards'
+      case 'idle':      return '> READY';
+      case 'scanning':  return scanType === 'standards'
         ? '> SCANNING ALL STANDARDS (this may take a minute)...'
         : scanType === 'ncsa'
         ? '> SCANNING สกมช. (NCSA Guidelines)...'
         : '> SCANNING...';
-      case 'done':     return '> SCAN COMPLETE';
-      case 'error':    return '> ERROR';
+      case 'analyzing': return '> AI CYBERSECURITY ANALYSIS IN PROGRESS...';
+      case 'done':      return '> SCAN COMPLETE';
+      case 'error':     return '> ERROR';
     }
   }, [scanStatus, scanType]);
 
   const getStatusClass = useCallback(() => {
     switch (scanStatus) {
-      case 'idle':     return '';
-      case 'scanning': return 'scanning';
-      case 'done':     return 'ready';
-      case 'error':    return 'error';
+      case 'idle':      return '';
+      case 'scanning':  return 'scanning';
+      case 'analyzing': return 'scanning';
+      case 'done':      return 'ready';
+      case 'error':     return 'error';
     }
   }, [scanStatus]);
 
@@ -267,5 +321,6 @@ export function useScanState(): UseScanStateReturn {
     getStatusText,
     getStatusClass,
     showResult,
+    aiBatchReady,
   };
 }

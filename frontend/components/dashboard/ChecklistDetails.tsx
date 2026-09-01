@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { STANDARD_ICONS, STATUS_CONFIG } from '../../lib/constants';
 import type { StandardReport, CheckItem, CheckStatus, EvidenceNode } from '../../lib/types';
+import type { AiBatchResult } from '../../lib/api';
 
 interface ChecklistDetailsProps {
   standards: StandardReport[];
@@ -12,6 +13,8 @@ interface ChecklistDetailsProps {
   failedItems: CheckItem[];
   warningItems: CheckItem[];
   passedItems: CheckItem[];
+  aiFixMap: Record<string, AiBatchResult>;
+  aiFixLoading: boolean;
 }
 
 export function ChecklistDetails({
@@ -23,6 +26,8 @@ export function ChecklistDetails({
   failedItems,
   warningItems,
   passedItems,
+  aiFixMap,
+  aiFixLoading,
 }: ChecklistDetailsProps) {
   const [expandedEvidence, setExpandedEvidence] = useState<Set<string>>(new Set());
 
@@ -163,25 +168,75 @@ export function ChecklistDetails({
                         </div>
                       )}
 
-                      {/* ⚡ ความเสี่ยง (แสดงเฉพาะข้อที่ไม่ผ่านหรือเตือน) */}
-                      {!isPass && item.why_th && (
-                        <div className="dash-risk-box">
-                          <span className="dash-risk-box-icon">⚡</span>
-                          <span className="dash-risk-box-text">
-                            <strong>ความเสี่ยง:</strong> {item.why_th}
-                          </span>
-                        </div>
-                      )}
+                      {/* ⚡ ความเสี่ยง (AI-powered or static fallback) */}
+                      {!isPass && (() => {
+                        const aiData = aiFixMap[item.id];
+                        const aiRisk = aiData?.ai_risk;
+                        const staticRisk = item.why_th;
+                        const displayRisk = aiRisk || staticRisk;
 
-                      {/* 💡 วิธีแก้ไข (แสดงเฉพาะข้อที่ไม่ผ่านหรือเตือน) */}
-                      {!isPass && item.remediation_th && (
-                        <div className="dash-fix-box">
-                          <span className="dash-fix-icon">💡</span>
-                          <span className="dash-fix-text">
-                            <strong>วิธีแก้:</strong> {item.remediation_th}
-                          </span>
-                        </div>
-                      )}
+                        if (aiFixLoading && !aiRisk) {
+                          return (
+                            <div className="dash-risk-box">
+                              <span className="dash-risk-box-icon">⚡</span>
+                              <span className="dash-risk-box-text">
+                                <strong>ความเสี่ยง:</strong>
+                                <span className="dash-ai-shimmer">กำลังวิเคราะห์ด้วย AI...</span>
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (displayRisk) {
+                          return (
+                            <div className="dash-risk-box">
+                              <span className="dash-risk-box-icon">⚡</span>
+                              <span className="dash-risk-box-text">
+                                <strong>ความเสี่ยง:</strong>
+                                {aiRisk && <span className="dash-ai-badge">🤖 AI</span>}
+                                {' '}{displayRisk}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
+
+                      {/* 💡 วิธีแก้ไข (AI-powered or static fallback) */}
+                      {!isPass && (() => {
+                        const aiData = aiFixMap[item.id];
+                        const aiFix = aiData?.ai_fix;
+                        const staticFix = item.remediation_th;
+                        const displayFix = aiFix || staticFix;
+
+                        if (aiFixLoading && !aiFix) {
+                          return (
+                            <div className="dash-fix-box">
+                              <span className="dash-fix-icon">💡</span>
+                              <span className="dash-fix-text">
+                                <strong>วิธีแก้:</strong>
+                                <span className="dash-ai-shimmer">กำลังวิเคราะห์ด้วย AI...</span>
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (displayFix) {
+                          return (
+                            <div className="dash-fix-box">
+                              <span className="dash-fix-icon">💡</span>
+                              <span className="dash-fix-text">
+                                <strong>วิธีแก้:</strong>
+                                {aiFix && <span className="dash-ai-badge">🤖 AI</span>}
+                                {' '}{displayFix}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
                     </div>
                   </div>
 

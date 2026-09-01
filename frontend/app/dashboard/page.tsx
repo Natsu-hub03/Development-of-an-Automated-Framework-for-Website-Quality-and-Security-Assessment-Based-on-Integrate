@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getGrade } from '../../lib/constants';
 import type { StandardsReportData, ScanApiResponse, ScanResultsMap } from '../../lib/types';
+import type { AiBatchResult } from '../../lib/api';
 import { extractChecks, combineScanResults } from '../../lib/utils';
+import { executeAiBatchFix } from '../../lib/api';
 import { ScoreRing } from '../../components/dashboard/ScoreRing';
 import { StandardsGrid } from '../../components/dashboard/StandardsGrid';
 import { ChecklistDetails } from '../../components/dashboard/ChecklistDetails';
@@ -14,6 +16,9 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'pass' | 'fail' | 'warning'>('all');
+  const [aiFixMap, setAiFixMap] = useState<Record<string, AiBatchResult>>({});
+  const [aiFixLoading, setAiFixLoading] = useState(false);
+  const aiBatchTriggered = useRef(false);
 
   const handleCardClick = (stdId: string) => {
     setSelectedStandard((prev) => (prev === stdId ? null : stdId));
@@ -50,6 +55,68 @@ export default function DashboardPage() {
       // ignore parse errors
     }
   }, []);
+
+  // Auto-trigger AI batch analysis for failed/warning items
+  // Reads from localStorage cache first (pre-computed during scan)
+  const triggerAiBatch = useCallback(async (reportData: StandardsReportData) => {
+    if (aiBatchTriggered.current) return;
+    aiBatchTriggered.current = true;
+
+    // ── 1. Try cached results from localStorage (pre-computed during scan) ──
+    try {
+      const cached = localStorage.getItem('webscan_ai_batch_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const cachedUrl = (parsed.url || '').trim().replace(/\/+$/, '').toLowerCase();
+        const dataUrl = (reportData.url || '').trim().replace(/\/+$/, '').toLowerCase();
+        if (cachedUrl === dataUrl && parsed.results && Object.keys(parsed.results).length > 0) {
+          setAiFixMap(parsed.results);
+          // Already done — no loading, no API call
+          return;
+        }
+      }
+    } catch { /* ignore parse errors */ }
+
+    // ── 2. Fallback: call API if no cache available ─────────────────────
+    const allFailed = extractChecks(reportData.standards ?? [], 'fail');
+    const allWarning = extractChecks(reportData.standards ?? [], 'warning');
+    const itemsToAnalyze = [...allFailed, ...allWarning];
+
+    if (itemsToAnalyze.length === 0) return;
+
+    setAiFixLoading(true);
+    try {
+      const batchItems = itemsToAnalyze.map((item) => ({
+        check_id: item.id,
+        check_name: item.name,
+        check_name_th: item.name_th || undefined,
+        status: item.status,
+        detail: item.detail,
+        evidence: item.evidence,
+      }));
+
+      const response = await executeAiBatchFix(batchItems);
+      if (response.success && response.results) {
+        setAiFixMap(response.results);
+        // Cache for future visits
+        try {
+          localStorage.setItem(
+            'webscan_ai_batch_cache',
+            JSON.stringify({ url: reportData.url, results: response.results })
+          );
+        } catch { /* ignore quota errors */ }
+      }
+    } catch {
+      // AI not available — fallback to static text
+    }
+    setAiFixLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (data) {
+      triggerAiBatch(data);
+    }
+  }, [data, triggerAiBatch]);
 
   if (!mounted) return null;
 
@@ -197,6 +264,8 @@ export default function DashboardPage() {
             failedItems={failedItems}
             warningItems={warningItems}
             passedItems={passedItems}
+            aiFixMap={aiFixMap}
+            aiFixLoading={aiFixLoading}
           />
 
           {/* Tech Stack */}
