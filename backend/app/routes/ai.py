@@ -64,22 +64,25 @@ async def analyze_with_ai(
     if len(scan_json) > MAX_JSON_CHARS:
         scan_json = scan_json[:MAX_JSON_CHARS] + "\n... (truncated)"
 
-    prompt = f"""You are an expert web application security analyst.
+    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity ที่มีประสบการณ์กว่า 15 ปี เชี่ยวชาญเฉพาะทาง Web Application Security
+มีใบรับรอง OSCP, CISSP, CEH และเป็นผู้ตรวจประเมินตามมาตรฐาน NIST Cybersecurity Framework (CSF), OWASP ASVS และมาตรฐาน สกมช.
+คุณวิเคราะห์ช่องโหว่โดยอ้างอิง OWASP Top 10 (2021), CWE/CVE taxonomy, MITRE ATT&CK framework และ CVSS v3.1 scoring
 
-Analyze the following scan results for the website: {request.url}
-Scan type: {request.scan_type}
+วิเคราะห์ผลสแกนของเว็บไซต์: {request.url}
+ประเภทการสแกน: {request.scan_type}
 
-Scan data:
+ข้อมูลผลสแกน:
 {scan_json}
 
-Provide a security analysis report in markdown with these sections:
-1. Executive Summary (2-3 sentences)
-2. Detected Technologies and security implications
-3. Vulnerabilities and Risks (Risk Level, Issue, Impact, Recommendation)
-4. Top 5 Security Recommendations
-5. Overall Risk Score 1-10 with justification
+สร้างรายงานวิเคราะห์ความปลอดภัยในรูปแบบ Markdown ครอบคลุมหัวข้อเหล่านี้:
+1. **Executive Summary** (2-3 ประโยค สรุปสถานะความปลอดภัยภาพรวม)
+2. **Attack Surface Analysis** — เทคโนโลยีที่ตรวจพบ พร้อมนัยยะด้านความปลอดภัย ระบุ CVE ที่เกี่ยวข้อง (ถ้ามี)
+3. **Vulnerability Assessment** — ตารางช่องโหว่: Risk Level (CVSS Score), CWE ID, OWASP Top 10 Category, ผลกระทบ, วิธีแก้ไข
+4. **Threat Modeling** — สถานการณ์ภัยคุกคามที่เป็นไปได้ อ้างอิง MITRE ATT&CK Techniques (เช่น T1190 Exploit Public-Facing Application)
+5. **Top 5 Security Recommendations** — จัดลำดับตาม Risk Priority พร้อมอ้างอิง NIST CSF Functions (Identify/Protect/Detect/Respond/Recover)
+6. **Overall Risk Score** (1-10) พร้อมเหตุผลอ้างอิง CVSS และ Business Impact
 
-Use Thai for descriptions, keep technical terms in English.
+ตอบเป็นภาษาไทย คำศัพท์เทคนิค (OWASP, CVE, CWE, MITRE ATT&CK, NIST) ให้คงเป็นภาษาอังกฤษ
 """
 
     try:
@@ -167,7 +170,9 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
         except Exception:
             evidence_str = str(request.evidence)[:1500]
 
-    prompt = f"""คุณเป็นผู้เชี่ยวชาญระดับ Senior ด้าน Web Accessibility (WCAG 2.1), Web Performance (Core Web Vitals), และ Web Security (OWASP & มาตรฐาน สกมช.)
+    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity และ Web Application Security ที่มีใบรับรอง OSCP, CISSP
+เชี่ยวชาญ OWASP Top 10, OWASP ASVS, CWE/CVE taxonomy, NIST Cybersecurity Framework
+รวมถึงมาตรฐาน WCAG 2.1 (Accessibility), Core Web Vitals (Performance) และมาตรฐาน สกมช. (NCSA Thailand)
 
 กรุณาวิเคราะห์และให้คำแนะนำวิธีแก้ไขสำหรับรายการตรวจสอบต่อไปนี้:
 - รหัสตรวจสอบ: {request.check_id}
@@ -178,10 +183,12 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
 - ข้อมูลหลักฐานโค้ดที่พบ (Evidence):
 {evidence_str or 'ไม่มีข้อมูล snippet เฉพาะจุด'}
 
-กรุณาตอบเป็นภาษาไทยแบบกระชับ ชัดเจน เข้าใจง่าย และตรงประเด็น โดยจัดรูปแบบ Markdown ดังนี้:
-1. 🔍 **สาเหตุของปัญหา**: สรุปสั้นๆ ว่าทำไมถึงไม่ผ่าน
-2. 💡 **วิธีแก้ไขทีละขั้นตอน (Step-by-step)**: ข้อ 1, 2, 3 สั้นกระชับ
-3. 💻 **ตัวอย่างโค้ดที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config หรือ JS ที่แก้ไขเสร็จแล้ว
+กรุณาตอบเป็นภาษาไทยแบบกระชับ ชัดเจน เข้าใจง่าย ตรงประเด็น โดยจัดรูปแบบ Markdown ดังนี้:
+1. 🔍 **สาเหตุของปัญหา**: สรุปสั้นๆ ว่าทำไมถึงไม่ผ่าน พร้อมระบุ CWE ID หรือ OWASP Category ที่เกี่ยวข้อง (ถ้าเป็นประเด็นด้าน Security)
+2. ⚠️ **ระดับความเสี่ยง**: ระบุ CVSS Score โดยประมาณ และ Attack Vector ที่เป็นไปได้ (ถ้าเป็นประเด็นด้าน Security) หรือผลกระทบต่อ Accessibility/Performance
+3. 💡 **วิธีแก้ไขทีละขั้นตอน (Step-by-step)**: ข้อ 1, 2, 3 สั้นกระชับ อ้างอิง Best Practices จาก OWASP, NIST หรือ WCAG
+4. 💻 **ตัวอย่างโค้ดที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config / JS / Security Header ที่แก้ไขเสร็จแล้ว
+5. 🛡️ **การป้องกันเชิงลึก (Defense in Depth)**: แนะนำมาตรการเสริมเพิ่มเติม เช่น WAF rules, CSP policy, monitoring
 """
 
     try:
@@ -239,9 +246,10 @@ async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
             except Exception:
                 evidence_str = str(item.evidence)[:1500]
 
-        prompt = f"""คุณเป็นผู้เชี่ยวชาญด้าน Web Security, Accessibility และ Performance
+        prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity (OSCP/CISSP) เชี่ยวชาญ OWASP Top 10, CWE/CVE, NIST CSF, MITRE ATT&CK
+รวมถึง Web Accessibility (WCAG 2.1) และ Web Performance (Core Web Vitals)
 
-วิเคราะห์ผลตรวจสอบนี้ให้กระชับ ตรงประเด็น ตอบจากข้อมูลจริงที่ตรวจพบ:
+วิเคราะห์ผลตรวจสอบนี้ให้กระชับ ตรงประเด็น ตอบจากข้อมูลจริงที่ตรวจพบ โดยอ้างอิงมาตรฐานสากล:
 - รหัส: {item.check_id}
 - รายการ: {item.check_name} ({item.check_name_th or ''})
 - สถานะ: {item.status}
@@ -251,9 +259,9 @@ async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
 
 ตอบเป็นภาษาไทยเท่านั้น ในรูปแบบนี้เท่านั้น (ไม่ต้องมีหัวข้ออื่น):
 
-⚡ ความเสี่ยง: [อธิบาย 1-3 ประโยค ว่าปัญหานี้ส่งผลกระทบอะไรต่อเว็บไซต์นี้โดยเฉพาะ อ้างอิงจาก evidence ที่ตรวจพบจริง]
+⚡ ความเสี่ยง: [อธิบาย 1-3 ประโยค ว่าปัญหานี้ส่งผลกระทบอะไรต่อเว็บไซต์โดยเฉพาะ อ้างอิง CWE ID, OWASP Category หรือ MITRE ATT&CK Technique ที่เกี่ยวข้อง (ถ้าเป็นด้าน Security) พร้อมระบุ Attack Vector ที่เป็นไปได้]
 
-💡 วิธีแก้: [อธิบาย 1-3 ประโยค ว่าควรแก้ไขอย่างไร ให้ตัวอย่างโค้ดหรือ config สั้นๆ ถ้าเป็นไปได้]"""
+💡 วิธีแก้: [อธิบาย 1-3 ประโยค ตาม Best Practices จาก OWASP/NIST/WCAG ให้ตัวอย่างโค้ดหรือ config สั้นๆ ถ้าเป็นไปได้]"""
 
         try:
             response = client.generate(

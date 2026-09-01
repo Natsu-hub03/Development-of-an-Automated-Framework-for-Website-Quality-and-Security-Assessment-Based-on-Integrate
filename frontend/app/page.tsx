@@ -150,13 +150,24 @@ export default function Home() {
 
                 {/* Dashboard + AI buttons */}
                 <div className="ai-trigger-row">
-                  <Link
-                    href="/dashboard"
-                    id="view-dashboard-button"
-                    className="scan-btn dashboard-link-btn"
-                  >
-                    📊 VIEW DASHBOARD
-                  </Link>
+                  {scan.aiBatchReady ? (
+                    <Link
+                      href="/dashboard"
+                      id="view-dashboard-button"
+                      className="scan-btn dashboard-link-btn"
+                    >
+                      📊 VIEW DASHBOARD
+                    </Link>
+                  ) : (
+                    <button
+                      id="view-dashboard-button"
+                      className="scan-btn dashboard-link-btn"
+                      disabled
+                      aria-label="กำลังเตรียม Dashboard"
+                    >
+                      <span className="spinner" aria-hidden="true" /> 🔄 PREPARING DASHBOARD...
+                    </button>
+                  )}
                   <button
                     id="ai-analyze-button"
                     className="ai-btn"

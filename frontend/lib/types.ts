@@ -6,7 +6,7 @@ export type ScanType = 'standards' | 'wcag' | 'cwv' | 'ncsa' | 'owasp';
 
 export type CheckStatus = 'pass' | 'fail' | 'warning' | 'info';
 
-export type ScanStatus = 'idle' | 'scanning' | 'done' | 'error';
+export type ScanStatus = 'idle' | 'scanning' | 'done' | 'error' | 'analyzing';
 
 export interface EvidenceNode {
   target?: string[];
