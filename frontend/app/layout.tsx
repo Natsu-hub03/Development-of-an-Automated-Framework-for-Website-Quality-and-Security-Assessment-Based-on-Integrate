@@ -23,17 +23,6 @@ export default function RootLayout({
   return (
     <html lang="th">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* Syne (display) + IBM Plex Sans (body) + IBM Plex Mono (mono/terminal) */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
         {/* interface-kit: skip link — first focusable element */}
