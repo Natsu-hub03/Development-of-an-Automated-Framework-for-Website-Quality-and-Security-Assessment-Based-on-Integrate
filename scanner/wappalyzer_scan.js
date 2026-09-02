@@ -15,6 +15,9 @@ async function scan(url) {
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
+                '--disable-crash-reporter',
+                '--disable-breakpad',
+                '--no-zygote',
             ],
         },
     });
