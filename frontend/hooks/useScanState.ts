@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import type { ScanType, ScanStatus, ScanResultsMap, ScanApiResponse, StandardReport } from '../lib/types';
-import { executeScan, executeAiBatchFix } from '../lib/api';
+import { executeScan } from '../lib/api';
 import { normalizeUrl, unwrapReportData, extractChecks } from '../lib/utils';
 
 interface UseScanStateReturn {
@@ -161,6 +161,13 @@ export function useScanState(): UseScanStateReturn {
 
     try {
       const data = await executeScan(scanType, trimmedUrl);
+      if (data?.error) {
+        setResult(data);
+        setScanStatus('error');
+        setLoading(false);
+        return;
+      }
+
       setResult(data);
       setLastScannedUrl(trimmedUrl);
 
@@ -218,35 +225,6 @@ export function useScanState(): UseScanStateReturn {
 
       setAiBatchReady(true);
       setScanStatus('done');
-
-      // ── Non-blocking background AI batch pre-computation ─────────────────
-      const reportData = unwrapReportData(data);
-      if (reportData?.standards) {
-        const allFailed = extractChecks(reportData.standards, 'fail');
-        const allWarning = extractChecks(reportData.standards, 'warning');
-        const itemsToAnalyze = [...allFailed, ...allWarning];
-        if (itemsToAnalyze.length > 0) {
-          const batchItems = itemsToAnalyze.map((item) => ({
-            check_id: item.id,
-            check_name: item.name,
-            check_name_th: item.name_th || undefined,
-            status: item.status,
-            detail: item.detail,
-            evidence: item.evidence,
-          }));
-          // Run in background without awaiting
-          executeAiBatchFix(batchItems).then((response) => {
-            if (response.success && response.results) {
-              try {
-                localStorage.setItem(
-                  'webscan_ai_batch_cache',
-                  JSON.stringify({ url: trimmedUrl, results: response.results })
-                );
-              } catch { /* ignore quota errors */ }
-            }
-          }).catch(() => { /* ignore */ });
-        }
-      }
     } catch (err) {
       console.error(err);
       setResult({ error: 'ไม่สามารถเชื่อมต่อกับ Backend ได้ กรุณาตรวจสอบว่า Server กำลังทำงานอยู่' });

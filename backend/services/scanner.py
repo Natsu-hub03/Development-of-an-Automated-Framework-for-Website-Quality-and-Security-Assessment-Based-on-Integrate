@@ -19,7 +19,7 @@ from app.config import ZAP_BASE_URL, ZAP_API_KEY
 logger = logging.getLogger("webscan.scanner")
 
 # ── Shared thread pool — reused across all requests ──────────────────────────
-scanner_executor = ThreadPoolExecutor(max_workers=4)
+scanner_executor = ThreadPoolExecutor(max_workers=8)
 
 
 # ── Scanner directory resolution ─────────────────────────────────────────────
@@ -48,6 +48,7 @@ def run_node_scanner(script_name: str, url: str, timeout: int = 120) -> dict | N
             ["node", str(script_path), url],
             capture_output=True, text=True, timeout=timeout,
             cwd=str(scanner_dir),
+            start_new_session=True,
         )
         if proc.returncode != 0:
             logger.warning(
@@ -79,6 +80,7 @@ def run_single_scanner(script_name: str, url: str, timeout: int = 120) -> dict:
             ["node", str(script_path), url],
             capture_output=True, text=True, timeout=timeout,
             cwd=str(scanner_dir),
+            start_new_session=True,
         )
     except subprocess.TimeoutExpired:
         raise TimeoutError(f"{script_name} timed out (>{timeout}s)")

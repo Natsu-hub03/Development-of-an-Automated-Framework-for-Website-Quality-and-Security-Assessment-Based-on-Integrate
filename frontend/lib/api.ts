@@ -9,7 +9,7 @@ export function getScanEndpoint(type: ScanType): string {
   return `/scan/standard/${type}`;
 }
 
-const DEFAULT_SCAN_TIMEOUT = 180_000; // 3 minutes for comprehensive multi-tool scans
+const DEFAULT_SCAN_TIMEOUT = 300_000; // 5 minutes for comprehensive multi-tool scans
 const DEFAULT_AI_TIMEOUT = 180_000;   // 3 minutes for Ollama local LLM generation
 
 export async function executeScan(

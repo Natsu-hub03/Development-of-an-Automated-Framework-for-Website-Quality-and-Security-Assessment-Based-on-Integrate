@@ -76,29 +76,25 @@ async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
         wap_data.get("technologies", []) if isinstance(wap_data, dict) else []
     )
 
-    # Persist — wrap sync DB ops in executor to avoid blocking the event loop
-    def _persist_scan():
-        try:
-            scan = Scan(url=url_str, status="completed")
-            db.add(scan)
-            db.commit()
-            db.refresh(scan)
-
-            scan_result = ScanResult(
-                scan_id=scan.id, tool_name="standards", raw_data=report
-            )
-            db.add(scan_result)
-            db.commit()
-            return scan.id
-        except Exception as e:
-            db.rollback()
-            raise e
-
+    # Persist
     try:
-        scan_id = await loop.run_in_executor(None, _persist_scan)
-        return {"success": True, "scan_id": scan_id, "data": report}
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(
+            scan_id=scan.id, tool_name="standards", raw_data=report
+        )
+        db.add(scan_result)
+        db.commit()
+        scan_id = scan.id
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+        db.rollback()
+        logger.warning("Database write failed for standards scan: %s", e)
+        scan_id = None
+
+    return {"success": True, "scan_id": scan_id, "data": report}
 
 
 @router.post("/standard/{standard_id}")
@@ -189,28 +185,24 @@ async def scan_single_standard(
     else:
         report["wappalyzer_technologies"] = []
 
-    # Persist — wrap sync DB ops in executor to avoid blocking the event loop
-    def _persist_scan():
-        try:
-            scan = Scan(url=url_str, status="completed")
-            db.add(scan)
-            db.commit()
-            db.refresh(scan)
-
-            scan_result = ScanResult(
-                scan_id=scan.id,
-                tool_name=f"standard_{standard_id}",
-                raw_data=report,
-            )
-            db.add(scan_result)
-            db.commit()
-            return scan.id
-        except Exception as e:
-            db.rollback()
-            raise e
-
+    # Persist
     try:
-        scan_id = await loop.run_in_executor(None, _persist_scan)
-        return {"success": True, "scan_id": scan_id, "data": report}
+        scan = Scan(url=url_str, status="completed")
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        scan_result = ScanResult(
+            scan_id=scan.id,
+            tool_name=f"standard_{standard_id}",
+            raw_data=report,
+        )
+        db.add(scan_result)
+        db.commit()
+        scan_id = scan.id
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database write failed: {e}")
+        db.rollback()
+        logger.warning("Database write failed for single standard scan: %s", e)
+        scan_id = None
+
+    return {"success": True, "scan_id": scan_id, "data": report}
