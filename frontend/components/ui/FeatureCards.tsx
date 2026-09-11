@@ -18,11 +18,11 @@ export function FeatureCards() {
             ตรวจหาช่องโหว่และจุดอ่อนด้านความปลอดภัยของเว็บไซต์
           </p>
         </article>
-        <article className="feature-card" id="feature-ai">
-          <div className="feature-icon-wrap" aria-hidden="true">✦</div>
-          <h3 className="feature-title">AI Analysis</h3>
+        <article className="feature-card" id="feature-automated">
+          <div className="feature-icon-wrap" aria-hidden="true">📊</div>
+          <h3 className="feature-title">Automated Analysis</h3>
           <p className="feature-desc">
-            วิเคราะห์ผลสแกนด้วย Ollama AI และรับรายงานความปลอดภัยแบบละเอียด
+            ประเมินและสรุปรายงานตามมาตรฐานความปลอดภัยแบบอัตโนมัติ
           </p>
         </article>
       </div>

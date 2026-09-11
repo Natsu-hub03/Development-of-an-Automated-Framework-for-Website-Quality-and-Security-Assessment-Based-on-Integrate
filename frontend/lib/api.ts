@@ -10,7 +10,7 @@ export function getScanEndpoint(type: ScanType): string {
 }
 
 const DEFAULT_SCAN_TIMEOUT = 300_000; // 5 minutes for comprehensive multi-tool scans
-const DEFAULT_AI_TIMEOUT = 180_000;   // 3 minutes for Ollama local LLM generation
+const DEFAULT_AI_TIMEOUT = 360_000;   // 6 minutes for Ollama local LLM analysis
 
 export async function executeScan(
   type: ScanType,
@@ -51,6 +51,7 @@ export async function executeAiAnalysis(
   url: string,
   scanData: unknown,
   scanType: string,
+  forceRefresh = false,
   timeoutMs = DEFAULT_AI_TIMEOUT
 ): Promise<ScanApiResponse> {
   const controller = new AbortController();
@@ -60,7 +61,12 @@ export async function executeAiAnalysis(
     const res = await fetch(`${API_BASE_URL}/analyze/ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, scan_data: scanData, scan_type: scanType }),
+      body: JSON.stringify({
+        url,
+        scan_data: scanData,
+        scan_type: scanType,
+        force_refresh: forceRefresh,
+      }),
       signal: controller.signal,
     });
 
@@ -103,7 +109,7 @@ export interface AiBatchResponse {
   error?: string;
 }
 
-const DEFAULT_AI_BATCH_TIMEOUT = 300_000; // 5 minutes for batch
+const DEFAULT_AI_BATCH_TIMEOUT = 360_000; // 6 minutes for batch
 
 export async function executeAiBatchFix(
   items: AiBatchItem[],

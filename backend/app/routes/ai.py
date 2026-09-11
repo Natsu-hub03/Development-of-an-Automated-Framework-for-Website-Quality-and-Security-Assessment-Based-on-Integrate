@@ -21,10 +21,17 @@ logger = logging.getLogger("webscan.routes.ai")
 router = APIRouter(tags=["ai"])
 
 
+try:
+    from standards_guidance import GUIDANCE
+except ImportError:
+    GUIDANCE = {}
+
+
 class AIAnalyzeRequest(BaseModel):
     url: str
     scan_data: Any
     scan_type: str = "both"
+    force_refresh: bool = False
 
 
 class CheckAIFixRequest(BaseModel):
@@ -50,27 +57,28 @@ class BatchAIFixRequest(BaseModel):
     items: list[BatchCheckItem]
 
 
-def extract_grounded_scan_facts(scan_data: Any, max_chars: int = 3500) -> str:
+def extract_grounded_scan_facts(scan_data: Any, max_chars: int = 4000) -> str:
     """
-    Extract factual findings cleanly from scan_data without breaking JSON or overflowing context.
-    Prevents hallucination by feeding structured, unambiguous facts to the model.
+    Extract structured, categorized security & quality findings from scan_data.
+    Grounds the data with domain knowledge from standards_guidance to prevent hallucination
+    and eliminate generic AI filler/slop.
     """
     if isinstance(scan_data, dict):
         data = scan_data.get("data", scan_data) if isinstance(scan_data.get("data"), dict) else scan_data
 
-        lines: List[str] = []
+        sections: List[str] = []
 
-        # 1. Summary Counts
+        # 1. Summary Metrics
         summary = data.get("summary")
         if isinstance(summary, dict):
-            lines.append(
-                f"📊 สรุปผลการตรวจสอบ: ทั้งหมด {summary.get('total', 0)} รายการ "
-                f"| ผ่าน: {summary.get('passed', 0)} "
-                f"| ไม่ผ่าน: {summary.get('failed', 0)} "
-                f"| เฝ้าระวัง: {summary.get('warning', 0)}"
+            sections.append(
+                f"📊 สรุปตัวเลขผลตรวจ: ตรวจทั้งหมด {summary.get('total', 0)} รายการ "
+                f"| ผ่าน ✅ {summary.get('passed', 0)} รายการ "
+                f"| ไม่ผ่าน ❌ {summary.get('failed', 0)} รายการ "
+                f"| ข้อสังเกต/เฝ้าระวัง ⚠️ {summary.get('warning', 0)} รายการ"
             )
 
-        # 2. Detected Technologies
+        # 2. Detected Tech Stack
         techs = data.get("wappalyzer_technologies") or data.get("technologies") or []
         if isinstance(techs, list) and techs:
             tech_items = []
@@ -78,23 +86,27 @@ def extract_grounded_scan_facts(scan_data: Any, max_chars: int = 3500) -> str:
                 if isinstance(t, dict):
                     name = t.get("name", "")
                     ver = t.get("version")
-                    tech_items.append(f"{name} (v{ver})" if ver else name)
+                    cats = [c.get("name") if isinstance(c, dict) else str(c) for c in t.get("categories", [])]
+                    cat_str = f" ({', '.join(cats)})" if cats else ""
+                    tech_items.append(f"{name}{' v' + str(ver) if ver else ''}{cat_str}")
                 elif isinstance(t, str):
                     tech_items.append(t)
             if tech_items:
-                lines.append(f"🛠️ เทคโนโลยีและไลบรารีที่ตรวจพบ: {', '.join(tech_items)}")
+                sections.append(f"🛠️ Tech Stack ที่ตรวจพบ:\n" + "\n".join(f"  • {item}" for item in tech_items))
 
-        # 3. Failed & Warning Checklist Items
+        # 3. Categorized Failed & Warning Checklist Items
         standards = data.get("standards")
         if isinstance(standards, list):
-            failed_items: List[str] = []
-            warning_items: List[str] = []
-            passed_items: List[str] = []
+            sec_items: List[str] = []     # NCSA & OWASP
+            perf_items: List[str] = []    # CWV & SEO
+            a11y_items: List[str] = []    # WCAG
 
             for std in standards:
                 if not isinstance(std, dict):
                     continue
+                std_id = std.get("id", "").lower()
                 std_name = std.get("name", "Standard")
+
                 for cat in std.get("categories", []):
                     if not isinstance(cat, dict):
                         continue
@@ -102,40 +114,56 @@ def extract_grounded_scan_facts(scan_data: Any, max_chars: int = 3500) -> str:
                         if not isinstance(check, dict):
                             continue
                         status = check.get("status")
-                        chk_name = check.get("name_th") or check.get("name") or check.get("id")
+                        if status not in ("fail", "warning"):
+                            continue
+
+                        chk_id = check.get("id", "")
+                        chk_name = check.get("name_th") or check.get("name") or chk_id
                         detail = check.get("detail", "").strip()
+                        badge = "❌ ไม่ผ่าน" if status == "fail" else "⚠️ เฝ้าระวัง"
 
-                        if status == "fail":
-                            detail_str = f" - สาเหตุ: {detail}" if detail else ""
-                            failed_items.append(f"[{std_name}] ❌ {chk_name}{detail_str}")
-                        elif status == "warning":
-                            detail_str = f" - ข้อสังเกต: {detail}" if detail else ""
-                            warning_items.append(f"[{std_name}] ⚠️ {chk_name}{detail_str}")
-                        elif status == "pass":
-                            passed_items.append(f"[{std_name}] ✅ {chk_name}")
+                        # Retrieve technical guidance if known
+                        guidance_entry = GUIDANCE.get(chk_id, {})
+                        why = guidance_entry.get("why_th", "")
+                        remedy = guidance_entry.get("remediation_th", "")
 
-            if failed_items:
-                lines.append("\n❌ รายการที่ไม่ผ่านการทดสอบ (Failed Checks):")
-                lines.extend(f"  • {item}" for item in failed_items)
+                        item_text = f"[{badge}] {chk_name} (ID: {chk_id})"
+                        if detail:
+                            item_text += f"\n    - ผลตรวจจริง: {detail}"
+                        if why:
+                            item_text += f"\n    - ผลกระทบ: {why[:120]}..."
 
-            if warning_items:
-                lines.append("\n⚠️ รายการที่พบข้อสังเกต/ควรเฝ้าระวัง (Warnings):")
-                lines.extend(f"  • {item}" for item in warning_items)
+                        if std_id in ("ncsa", "owasp") or "security" in std_name.lower() or "owasp" in std_name.lower():
+                            sec_items.append(item_text)
+                        elif std_id in ("cwv", "seo") or "vital" in std_name.lower() or "performance" in std_name.lower():
+                            perf_items.append(item_text)
+                        else:
+                            a11y_items.append(item_text)
 
-        # 4. Direct ZAP Alerts (if raw zap data passed)
+            if sec_items:
+                sections.append("\n🛡️ ประเด็นความมั่นคงปลอดภัย & มาตรฐาน (NCSA & OWASP Headers):\n" + "\n".join(f"  • {item}" for item in sec_items))
+            if perf_items:
+                sections.append("\n⚡ ประเด็นประสิทธิภาพ & SEO (Core Web Vitals & SEO):\n" + "\n".join(f"  • {item}" for item in perf_items))
+            if a11y_items:
+                sections.append("\n♿ ประเด็นการเข้าถึง & โครงสร้างเว็บ (WCAG 2.1 Accessibility):\n" + "\n".join(f"  • {item}" for item in a11y_items))
+
+        # 4. Direct ZAP Alerts
         zap_alerts = data.get("alerts") or data.get("zap_alerts")
         if isinstance(zap_alerts, list) and zap_alerts:
-            lines.append("\n🛡️ ช่องโหว่ที่ ZAP ตรวจพบ (ZAP Alerts):")
+            alert_lines = []
             for alert in zap_alerts[:10]:
                 if isinstance(alert, dict):
                     risk = alert.get("risk", "Info")
                     name = alert.get("alert", alert.get("name", "Alert"))
-                    lines.append(f"  • [{risk}] {name}")
+                    desc = alert.get("description", "")
+                    alert_lines.append(f"  • [{risk}] {name}" + (f" - {desc[:80]}..." if desc else ""))
+            if alert_lines:
+                sections.append("\n🚨 ช่องโหว่จากการทดสอบ Active Scanner (ZAP Alerts):\n" + "\n".join(alert_lines))
 
-        if lines:
-            text = "\n".join(lines)
+        if sections:
+            text = "\n\n".join(sections)
             if len(text) > max_chars:
-                return text[:max_chars] + "\n...(ข้อมูลส่วนที่เหลือถูกตัดเนื่องจากขนาดยาวเกินกำหนด)"
+                return text[:max_chars] + "\n...(สรุปข้อมูลส่วนที่เหลือเพื่อรักษาความกระชับ)"
             return text
 
     # Fallback to safely truncated json
@@ -154,42 +182,79 @@ async def analyze_with_ai(
     db: Session = Depends(get_db),
 ):
     """
-    Send structured scan results to Ollama (local LLM) for grounded, factual security analysis.
-    Returns a markdown report strictly based on observed findings.
+    Send structured scan results to Ollama (local LLM) for grounded, high-level security analysis.
+    Returns a comprehensive, executive-ready markdown security & compliance report.
     """
+    # 1. Check if a recent AI report already exists for this scan/URL
+    try:
+        recent_scan = (
+            db.query(Scan)
+            .filter(Scan.url == request.url)
+            .order_by(Scan.created_at.desc())
+            .first()
+        )
+        if recent_scan and not request.force_refresh:
+            existing_report = (
+                db.query(AIReport)
+                .filter(AIReport.scan_id == recent_scan.id)
+                .order_by(AIReport.created_at.desc())
+                .first()
+            )
+            # Only return cached report if it was complete and not truncated
+            if existing_report and existing_report.analysis_text and len(existing_report.analysis_text) > 300 and "### 5." in existing_report.analysis_text:
+                logger.info(
+                    "Returning cached complete AI report for scan_id=%d, url=%s",
+                    recent_scan.id, request.url,
+                )
+                return {
+                    "success": True,
+                    "url": request.url,
+                    "model": existing_report.model_name,
+                    "analysis": existing_report.analysis_text,
+                    "cached": True,
+                }
+    except Exception as e:
+        logger.warning("Cache check failed, proceeding with generation: %s", e)
+
     grounded_data = extract_grounded_scan_facts(request.scan_data, max_chars=MAX_JSON_CHARS)
 
-    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity และ Web Application Security ที่มีใบรับรอง OSCP, CISSP
-เชี่ยวชาญ OWASP Top 10, CWE/CVE taxonomy, NIST Cybersecurity Framework และมาตรฐานความปลอดภัย สกมช.
+    prompt = f"""คุณคือ Senior Cybersecurity Principal Consultant & Web Architect (OSCP, CISSP)
+เชี่ยวชาญการประเมินความปลอดภัยตาม OWASP Top 10, ประกาศมาตรฐาน สกมช. (NCSA Thailand), Core Web Vitals และ WCAG 2.1
 
-กรุณาวิเคราะห์ผลการตรวจสอบเว็บไซต์ต่อไปนี้อย่างแม่นยำและเป็นกลาง:
-- URL เป้าหมาย: {request.url}
-- ประเภทการสแกน: {request.scan_type}
+กรุณาวิเคราะห์ผลการตรวจสอบเว็บไซต์ด้านล่างนี้ และสร้างรายงานวิเคราะห์ความปลอดภัยระดับมืออาชีพสำหรับผู้บริหารและทีมวิศวกร:
+- เว็บไซต์เป้าหมาย: {request.url}
+- ประเภทการตรวจ: {request.scan_type}
 
-ข้อมูลผลการตรวจสอบจริง (Scan Data):
+ข้อมูลผลการตรวจสแกนจริง (Grounded Scan Data):
 {grounded_data}
 
-กฎสำคัญสำหรับการวิเคราะห์ (Strict Factual Grounding Rules):
-1. ยึดตาม "ข้อมูลผลการตรวจสอบจริงข้างต้นเท่านั้น" ห้ามกุขึ้นมาเองหรือคาดเดาช่องโหว่ที่ไม่มีในผลสแกน (ห้าม Hallucinate เช่น ห้ามอ้างว่ามี SQL Injection, XSS, หรือ RCE หากผลสแกนไม่ได้ระบุว่าตรวจพบ)
-2. หากเทคโนโลยีใดไม่มีการระบุเวอร์ชัน ให้ระบุว่า "ไม่ระบุเวอร์ชัน" ห้ามเดาเวอร์ชันหรือเดาหมายเลข CVE
-3. ประเมินระดับความเสี่ยง (Risk Score 1-10) ให้สอดคล้องกับจำนวนและความรุนแรงของรายการที่ไม่ผ่านจริง
-4. เขียนเนื้อหาเป็นภาษาไทยที่กระชับ ชัดเจน เข้าใจง่าย คงคำศัพท์เทคนิคเป็นภาษาอังกฤษตามมาตรฐาน
+กฎสำคัญและมาตรฐานคุณภาพการวิเคราะห์ (Strict Professional Rules):
+1. **ห้ามตอบกว้างๆ ซ้ำซาก หรือ AI Fluff**: ห้ามเขียนประโยคที่ไม่ให้สาระ เช่น "เทคโนโลยีมีความเสี่ยงด้านซอฟต์แวร์" แต่ให้เจาะจงที่ Attack Vector, ความเสี่ยงเชิงลึก และผลกระทบต่อระบบจริง
+2. **สังเคราะห์ความเสี่ยงเชิงโครงสร้าง (Synthesized Analysis)**: จัดกลุ่มสาเหตุรากเหง้า (Root Cause) และผลกระทบ ไม่แจกแจงแบบท่องจำ
+3. **ให้ตัวอย่างคอนฟิก/โค้ดที่ถูกต้องและปลอดภัย (Actionable Code/Config)**: ในส่วนคำแนะนำ ให้มีตัวอย่าง Nginx directives, HTML tags, หรือ security config สั้นๆ ที่ทีมงานนำไปใช้งานได้ทันที
+4. **เขียนเป็นภาษาไทยระดับมืออาชีพ**: กระชับ ตรงประเด็น คงชื่อเฉพาะทางเทคนิคภาษาอังกฤษ (เช่น Header Names, Frameworks, Protocols)
 
-กรุณาจัดรูปแบบรายงานเป็น Markdown ตามโครงสร้างดังนี้:
+กรุณาจัดรูปแบบรายงานเป็น Markdown ให้ครบทั้ง 5 หัวข้อดังนี้:
+
 ### 1. 📋 บทสรุปสำหรับผู้บริหาร (Executive Summary)
-(สรุปภาพรวมสถานะความปลอดภัยของเว็บไซต์ 2-3 ประโยค จากผลการตรวจจริง)
+- **ภาพรวมสถานะความปลอดภัย**: (สรุปความพร้อมและความเสี่ยงโดยรวม 2-3 ประโยค)
+- **จุดแข็ง**: (สิ่งที่ระบบทำได้ถูกต้องตามมาตรฐาน)
+- **ประเด็นความเสี่ยงวิกฤตที่ต้องเร่งจัดการ**: (สรุป 2-3 ช่องโหว่ที่มีความเสี่ยงสูงสุด)
 
-### 2. 🛠️ เทคโนโลยีที่ตรวจพบและความเสี่ยงที่เกี่ยวข้อง (Detected Technologies)
-(วิเคราะห์เทคโนโลยีที่พบและข้อควรระวังตามผลสแกน)
+### 2. 🛠️ การวิเคราะห์ Attack Surface ตาม Tech Stack ที่ตรวจพบ
+(วิเคราะห์เจาะลึกเฉพาะเทคโนโลยีที่ตรวจพบจริง เช่น Web Server, CMS, Plugins, Library พร้อมชี้ช่องทางที่ผู้โจมตีอาจใช้เจาะระบบและการป้องกัน)
 
-### 3. ⚠️ ปัญหาและความเสี่ยงด้านความปลอดภัยที่ตรวจพบ (Identified Security Issues)
-(ระบุรายการปัญหาที่ 'ไม่ผ่าน' หรือ 'เตือน' พร้อมระดับความเสี่ยง Risk Level, ผลกระทบ Impact, และแนวทางแก้ไข)
+### 3. ⚠️ เจาะลึกประเด็นและช่องโหว่สำคัญ (Key Findings & Impact)
+- 🔴 **ด้านความมั่นคงปลอดภัย (Security & Compliance - NCSA/OWASP)**: (วิเคราะห์ผลกระทบจากการขาด Security Headers สำคัญ เช่น HSTS/CSP/X-Frame-Options, หน้าจัดการระบบที่เปิดสู่สาธารณะ หรือช่องโหว่ซอฟต์แวร์)
+- 🟡 **ด้านประสิทธิภาพและ SEO (Core Web Vitals & SEO)**: (วิเคราะห์ปัญหา LCP/TBT ที่สูงผิดปกติ และผลกระทบต่อ Conversion และ Google Ranking)
+- 🔵 **ด้านการเข้าถึงและความถูกต้อง (Accessibility - WCAG 2.1)**: (สรุปจุดบกพร่องด้าน Accessibility เช่น Contrast, Alt text, Heading Hierarchy)
 
-### 4. 🎯 5 คำแนะนำสำคัญเร่งด่วน (Top 5 Actionable Recommendations)
-(ข้อเสนอแนะ 5 ข้อที่เป็นรูปธรรมและแก้ไขปัญหาที่ตรวจพบข้างต้นได้ตรงจุด อ้างอิงตาม OWASP / NIST)
+### 4. 🎯 5 มาตรการแก้ไขเร่งด่วนพร้อมตัวอย่าง Config (Top 5 Actionable Fixes)
+(ระบุ 5 ลำดับความสำคัญเร่งด่วน พร้อมคำอธิบายและ Code / Config Snippet สั้นๆ ที่ถูกต้อง)
 
-### 5. 📊 ระดับความเสี่ยงโดยรวม (Overall Risk Score)
-(ให้คะแนน 1-10 พร้อมเหตุผลประกอบที่อิงจากรายการที่ไม่ผ่าน)
+### 5. 📊 ระดับความเสี่ยงโดยรวม (Overall Risk Assessment)
+- **คะแนนความเสี่ยง (Overall Risk Score)**: [ระบุตัวเลข 1-10 พร้อมระบุระดับ เช่น 6.5/10 - ระดับปานกลางค่อนไปทางสูง]
+- **เหตุผลประกอบ**: (สรุปเหตุผลสั้นๆ 2 ประโยครองรับคะแนนความเสี่ยงตามหลักฐานที่ตรวจพบ)
 """
 
     try:
@@ -198,9 +263,9 @@ async def analyze_with_ai(
             model=OLLAMA_MODEL,
             prompt=prompt,
             options={
-                "num_ctx": 4096,
-                "num_predict": 1024,
-                "temperature": 0.15,  # Low temperature for deterministic, factual output
+                "num_ctx": 3072,
+                "num_predict": 1200,
+                "temperature": 0.2,  # Professional, focused, deterministic
                 "top_p": 0.9,
             },
         )
@@ -278,7 +343,12 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
         except Exception:
             evidence_str = str(request.evidence)[:1500]
 
-    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity และ Web Application Security ที่มีใบรับรอง OSCP, CISSP
+    # Ground with predefined standard guidance if available
+    guidance_entry = GUIDANCE.get(request.check_id, {})
+    why_context = request.why_th or guidance_entry.get("why_th", "ตามมาตรฐานสากล")
+    remedy_context = guidance_entry.get("remediation_th", "")
+
+    prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity และ Web Application Security (OSCP, CISSP)
 เชี่ยวชาญ OWASP Top 10, OWASP ASVS, CWE/CVE taxonomy, NIST Cybersecurity Framework
 รวมถึงมาตรฐาน WCAG 2.1 (Accessibility), Core Web Vitals (Performance) และมาตรฐาน สกมช. (NCSA Thailand)
 
@@ -287,19 +357,20 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
 - ชื่อรายการ: {request.check_name} ({request.check_name_th or ''})
 - สถานะปัจจุบัน: {request.status}
 - ปัญหาที่ตรวจพบ: {request.detail}
-- ความสำคัญ/เหตุผล: {request.why_th or 'ตามมาตรฐาน'}
+- ความสำคัญ/เหตุผล: {why_context}
+- แนวทางมาตรฐานอ้างอิง: {remedy_context or 'ปรับปรุงตาม Best Practice'}
 - ข้อมูลหลักฐานโค้ดที่พบ (Evidence):
 {evidence_str or 'ไม่มีข้อมูล snippet เฉพาะจุด'}
 
 กฎการตอบ:
 1. ตอบตรงประเด็น ให้คำแนะนำที่ถูกต้องและใช้แก้ไขได้จริงตามมาตรฐาน
 2. ห้ามแต่งเติมข้อมูลที่ไม่มีอยู่จริง
-3. ให้ตัวอย่างโค้ดที่ถูกต้องและปลอดภัย
+3. ให้ตัวอย่างโค้ดหรือการตั้งค่า (Code Snippet/Config) ที่ถูกต้องและปลอดภัย
 
 กรุณาตอบเป็นภาษาไทยแบบกระชับ ชัดเจน และจัดรูปแบบ Markdown ดังนี้:
 1. 🔍 **สาเหตุของปัญหา**: สรุปสั้นๆ 1-2 ประโยคว่าทำไมถึงไม่ผ่าน
 2. 💡 **วิธีแก้ไขทีละขั้นตอน (Step-by-step)**: ข้อ 1, 2, 3 ชัดเจนและนำไปทำตามได้ทันที
-3. 💻 **ตัวอย่างโค้ดที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config หรือ JS ที่แก้ไขแล้วพร้อมคำอธิบายสั้นๆ
+3. 💻 **ตัวอย่างโค้ด/คอนฟิกที่ถูกต้อง**: ยกตัวอย่างโค้ด HTML / CSS / Nginx config หรือ JS ที่แก้ไขแล้วพร้อมคำอธิบายสั้นๆ
 4. 🛡️ **คำแนะนำเสริมด้านความปลอดภัย**: ข้อควรระวังเพิ่มเติมตามมาตรฐาน
 """
 
@@ -309,8 +380,8 @@ async def analyze_check_fix_with_ai(request: CheckAIFixRequest):
             model=OLLAMA_MODEL,
             prompt=prompt,
             options={
-                "num_ctx": 4096,
-                "num_predict": 1024,
+                "num_ctx": 2048,
+                "num_predict": 768,
                 "temperature": 0.15,  # Deterministic fix suggestions
                 "top_p": 0.9,
             },
@@ -359,6 +430,10 @@ async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
             except Exception:
                 evidence_str = str(item.evidence)[:1500]
 
+        guidance_entry = GUIDANCE.get(item.check_id, {})
+        why_context = guidance_entry.get("why_th", "")
+        remedy_context = guidance_entry.get("remediation_th", "")
+
         prompt = f"""คุณเป็นผู้เชี่ยวชาญอาวุโสด้าน Cybersecurity (OSCP/CISSP) เชี่ยวชาญ OWASP Top 10, CWE/CVE, NIST CSF, MITRE ATT&CK
 รวมถึง Web Accessibility (WCAG 2.1) และ Web Performance (Core Web Vitals)
 
@@ -367,6 +442,8 @@ async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
 - รายการ: {item.check_name} ({item.check_name_th or ''})
 - สถานะ: {item.status}
 - ปัญหาที่พบ: {item.detail}
+- ผลกระทบมาตรฐาน: {why_context or 'ส่งผลต่อความปลอดภัย/คุณภาพเว็บ'}
+- แนวทางมาตรฐาน: {remedy_context or 'ปรับปรุงตาม Best Practice'}
 - หลักฐาน (Evidence):
 {evidence_str or 'ไม่มี evidence เฉพาะจุด'}
 
@@ -381,7 +458,7 @@ async def analyze_batch_fix_with_ai(request: BatchAIFixRequest):
                 model=OLLAMA_MODEL,
                 prompt=prompt,
                 options={
-                    "num_ctx": 4096,
+                    "num_ctx": 2048,
                     "num_predict": 512,
                     "temperature": 0.2,
                 },

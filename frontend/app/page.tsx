@@ -7,29 +7,14 @@ import { Navbar } from '../components/ui/Navbar';
 import { HeroSection } from '../components/ui/HeroSection';
 import { FeatureCards } from '../components/ui/FeatureCards';
 import { StandardsReportPanel } from '../components/panels/StandardsReportPanel';
-import { AiReportPanel } from '../components/panels/AiReportPanel';
 import { useScanState } from '../hooks/useScanState';
-import { useAiAnalysis } from '../hooks/useAiAnalysis';
-import { normalizeUrl, unwrapReportData } from '../lib/utils';
+import { unwrapReportData } from '../lib/utils';
 
 export default function Home() {
   const scan = useScanState();
-  const ai = useAiAnalysis({
-    url: scan.url,
-    lastScannedUrl: scan.lastScannedUrl,
-    result: scan.result,
-    scanType: scan.scanType,
-    resultsByType: scan.resultsByType,
-  });
 
-  // Clear AI state when URL changes to a different domain
   const handleUrlChange = (newUrl: string) => {
     scan.setUrl(newUrl);
-    const normNew = normalizeUrl(newUrl);
-    const normOld = normalizeUrl(scan.lastScannedUrl || '');
-    if (normOld && normNew !== normOld) {
-      ai.clearAiState();
-    }
   };
 
   return (
@@ -148,7 +133,7 @@ export default function Home() {
                   />
                 </div>
 
-                {/* Dashboard + AI buttons */}
+                {/* Dashboard Action */}
                 <div className="ai-trigger-row">
                   <Link
                     href="/dashboard"
@@ -157,33 +142,7 @@ export default function Home() {
                   >
                     📊 ดูแดชบอร์ดสรุปผล
                   </Link>
-                  <button
-                    id="ai-analyze-button"
-                    className="ai-btn"
-                    onClick={ai.handleAiAnalyze}
-                    disabled={ai.aiLoading}
-                    aria-label="วิเคราะห์ด้วย AI"
-                  >
-                    {ai.aiLoading
-                      ? <><span className="spinner spinner--dark" aria-hidden="true" /> กำลังวิเคราะห์...</>
-                      : <>✦ วิเคราะห์ความปลอดภัยด้วย AI</>
-                    }
-                  </button>
-                  {ai.aiResult && (
-                    <span className="ai-model-badge">{ai.aiModel} · Ollama</span>
-                  )}
                 </div>
-
-                {ai.aiError && (
-                  <div className="error-banner" role="alert" id="ai-error-message">
-                    <span className="error-icon" aria-hidden="true">⚠</span>
-                    <span>{ai.aiError}</span>
-                  </div>
-                )}
-
-                {ai.aiResult && (
-                  <AiReportPanel url={scan.url} analysis={ai.aiResult} model={ai.aiModel} />
-                )}
               </div>
             )}
           </section>
@@ -194,7 +153,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="footer" id="site-footer">
           <p>
-            © 2026 WebScan &mdash; AI-Assisted Web Standards &amp; Vulnerability Assessment ·{' '}
+            © 2026 WebScan &mdash; Automated Web Standards &amp; Vulnerability Assessment ·{' '}
             <a href="https://github.com" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>

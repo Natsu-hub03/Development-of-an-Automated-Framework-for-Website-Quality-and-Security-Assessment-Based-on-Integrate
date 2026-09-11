@@ -5,7 +5,7 @@ export function HeroSection() {
     <section className="hero-section fade-in-delay-1" aria-labelledby="hero-heading">
       <div className="hero-eyebrow" aria-hidden="true">
         <span className="hero-eyebrow-dot" />
-        AI-Assisted Security Assessment
+        AUTOMATED SECURITY ASSESSMENT
       </div>
       <h1 className="hero-title" id="hero-heading">
         Web Standards{' '}

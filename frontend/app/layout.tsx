@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WebScan — AI-Assisted Web Standards & Vulnerability Scanner",
+  title: "WebScan — Automated Web Standards & Vulnerability Scanner",
   description:
     "Scan and analyze web technologies, security vulnerabilities, and standards compliance quickly and accurately.",
   keywords: ["web scanner", "wappalyzer", "ZAP", "web standards", "security", "vulnerability", "WCAG"],

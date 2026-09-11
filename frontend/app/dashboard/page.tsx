@@ -205,7 +205,7 @@ export default function DashboardPage() {
           {/* Footer */}
           <footer className="footer" id="site-footer">
             <p>
-              © 2026 WebScan &mdash; AI-Assisted Web Standards &amp; Vulnerability Assessment
+              © 2026 WebScan &mdash; Automated Web Standards &amp; Vulnerability Assessment
             </p>
           </footer>
         </div>
