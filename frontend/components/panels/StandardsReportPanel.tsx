@@ -47,7 +47,7 @@ export function StandardsReportPanel({
     passed: standards[0].passed ?? 0,
     failed: standards[0].failed ?? 0,
     warning: standards[0].warning ?? 0,
-  } : { total: 68, passed: 0, failed: 0, warning: 0 });
+  } : { total: 71, passed: 0, failed: 0, warning: 0 });
 
   const technologies: Technology[] = reportData?.wappalyzer_technologies ?? [];
   const [internalExpanded, setInternalExpanded] = useState<string | null>(null);
@@ -87,7 +87,7 @@ export function StandardsReportPanel({
         </div>
         <div className="standards-summary-stats">
           <div className="stat-card stat-total">
-            <div className="stat-value">{summary.total ?? (standards.length === 1 ? standards[0].total : 68)}</div>
+            <div className="stat-value">{summary.total ?? (standards.length === 1 ? standards[0].total : 71)}</div>
             <div className="stat-label">ทั้งหมด</div>
           </div>
           <div className="stat-card stat-pass">

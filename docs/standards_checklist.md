@@ -5,8 +5,8 @@
 | **1**       | **WCAG** (Web Content Accessibility Guidelines) | **W3C** (World Wide Web Consortium)                                    | มาตรฐานสากลการเข้าถึงเว็บสำหรับทุกคนและผู้พิการ                                                                  | **37 ข้อ**            |
 | **2**       | **Core Web Vitals & SEO**                       | **Google**                                                             | เกณฑ์วัดประสบการณ์ผู้ใช้ (UX) และการจัดอันดับ SEO                                                                | **9 ข้อ**             |
 | **3**       | **มาตรฐานความมั่นคงปลอดภัย สกมช.**              | **สกมช.** (สำนักงานคณะกรรมการการรักษาความมั่นคงปลอดภัยไซเบอร์แห่งชาติ) | ประกาศและข้อบังคับความปลอดภัยไซเบอร์ภาครัฐ/เอกชนไทย                                                              | **11 ข้อ**            |
-| **4**       | **OWASP HTTP Security Headers**                 | **OWASP Foundation**                                                   | โครงการ **OWASP Secure Headers Project** และเอกสารระบุข้อกำหนดทางเทคนิคอินเทอร์เน็ต (RFC - Request for Comments) | **11 ข้อ**            |
-|             |                                                 |                                                                        |                                                                                                                  | **รวม 68 ข้อ**        |
+| **4**       | **OWASP HTTP Security Headers**                 | **OWASP Foundation**                                                   | โครงการ **OWASP Secure Headers Project** และเอกสารระบุข้อกำหนดทางเทคนิคอินเทอร์เน็ต (RFC - Request for Comments) | **14 ข้อ**            |
+|             |                                                 |                                                                        |                                                                                                                  | **รวม 71 ข้อ**        |
 
 **1\. มาตรฐาน WCAG 2.1 (Web Accessibility)**
 

@@ -216,6 +216,9 @@ async function scan(url) {
                 'cross-origin-embedder-policy': h['cross-origin-embedder-policy'] || null,
                 'cross-origin-resource-policy': h['cross-origin-resource-policy'] || null,
                 'cache-control': h['cache-control'] || null,
+                'x-permitted-cross-domain-policies': h['x-permitted-cross-domain-policies'] || null,
+                'clear-site-data': h['clear-site-data'] || null,
+                'x-xss-protection': h['x-xss-protection'] || null,
             },
             // Server info disclosure
             server_info: {

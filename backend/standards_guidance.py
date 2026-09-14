@@ -5,7 +5,7 @@ with code examples for all 68 items across 4 web standards:
 1. WCAG 2.1 (37 items)
 2. Core Web Vitals & SEO (9 items)
 3. NCSA / สกมช. (11 items)
-4. OWASP Secure Headers (11 items)
+4. OWASP Secure Headers (14 items)
 """
 
 GUIDANCE: dict[str, dict[str, str]] = {
@@ -295,6 +295,18 @@ GUIDANCE: dict[str, dict[str, str]] = {
     "owasp-11": {
         "why_th": "หาก Cookie ไม่มี Secure แฮกเกอร์ดักจับ Session ผ่าน HTTP ได้ หากไม่มี HttpOnly สคริปต์ XSS ขโมย Cookie ด้วย document.cookie ได้ หากไม่มี SameSite แฮกเกอร์ส่งคำสั่ง CSRF แทนผู้ใช้ เช่น โอนเงิน เปลี่ยนอีเมล ลบบัญชี",
         "remediation_th": "กำหนดค่า Cookie ทุกตัวด้วย: Set-Cookie: name=value; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400",
+    },
+    "owasp-12": {
+        "why_th": "หากไม่มี X-Permitted-Cross-Domain-Policies: none โปรแกรม Flash Player หรือ Adobe Reader จะโหลดไฟล์ crossdomain.xml จากโดเมนอื่นและดึงข้อมูลข้ามโดเมนโดยไม่ได้รับอนุญาต ทำให้เกิด Data Exfiltration ได้",
+        "remediation_th": "เพิ่ม Header: X-Permitted-Cross-Domain-Policies: none",
+    },
+    "owasp-13": {
+        "why_th": "หากไม่มี Clear-Site-Data header บนหน้า Logout เมื่อผู้ใช้ออกจากระบบ Session Token, Cache และ Local Storage ยังค้างอยู่ในเบราว์เซอร์ ผู้ใช้รายถัดไปบนเครื่องสาธารณะสามารถกลับเข้าสู่ระบบได้",
+        "remediation_th": "เพิ่ม Header บนหน้า Logout: Clear-Site-Data: \"cache\", \"cookies\", \"storage\"",
+    },
+    "owasp-14": {
+        "why_th": "X-XSS-Protection เป็น Header เก่าที่สั่งให้เบราว์เซอร์เปิดใช้งาน XSS Auditor แต่ Auditor นี้ถูกยกเลิกแล้วในเบราว์เซอร์ใหม่ เพราะแฮกเกอร์สามารถใช้ Selective Script Blocking เพื่อปิดสคริปต์ป้องกันและเปิดทางให้สคริปต์อันตรายทำงานแทน OWASP แนะนำให้ตั้งเป็น 0 เพื่อปิดการทำงานทั้งหมดและพึ่งพา CSP แทน",
+        "remediation_th": "เพิ่ม Header: X-XSS-Protection: 0 (และใช้ Content-Security-Policy แทนการป้องกัน XSS)",
     },
 }
 

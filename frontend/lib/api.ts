@@ -110,7 +110,6 @@ export interface AiBatchResponse {
 }
 
 const DEFAULT_AI_BATCH_TIMEOUT = 360_000; // 6 minutes for batch
-
 export async function executeAiBatchFix(
   items: AiBatchItem[],
   timeoutMs = DEFAULT_AI_BATCH_TIMEOUT

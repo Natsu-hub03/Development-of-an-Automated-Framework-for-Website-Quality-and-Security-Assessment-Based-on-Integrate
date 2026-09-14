@@ -72,9 +72,9 @@ export function ChecklistDetails({
             <button
               className="dash-clear-std-btn"
               onClick={onClearStandard}
-              title="ล้างตัวกรองมาตรฐานเพื่อดูทั้งหมด 68 ข้อ"
+              title="ล้างตัวกรองมาตรฐานเพื่อดูทั้งหมด 71 ข้อ"
             >
-              ✕ ดูทั้งหมด 68 ข้อ
+              ✕ ดูทั้งหมด 71 ข้อ
             </button>
           </div>
         )}

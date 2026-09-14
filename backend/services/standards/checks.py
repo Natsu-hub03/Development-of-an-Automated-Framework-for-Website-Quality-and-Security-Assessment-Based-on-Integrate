@@ -1,8 +1,8 @@
 """
-Master checklist data — exactly 68 items across 4 web standards.
+Master checklist data — exactly 71 items across 4 web standards.
 
 This module contains pure data definitions only:
-- CHECKS: The 68 checklist items with their rules, types, and metadata
+- CHECKS: The 71 checklist items with their rules, types, and metadata
 - STANDARDS_META: Display metadata for each standard
 - STANDARD_TOOLS: Which scanner tools each standard requires
 - VALID_STANDARD_IDS: Set of valid standard identifiers
@@ -11,11 +11,12 @@ This module contains pure data definitions only:
 from services.standards.evaluators import (
     _v_csp, _v_hsts, _v_xfo, _v_xcto,
     _v_referrer, _v_coop, _v_coep, _v_corp, _v_cache,
+    _v_xpcdp, _v_clear_site_data, _v_xxssp,
 )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Master Checklist — exactly 68 items
+#  Master Checklist — exactly 71 items
 # ══════════════════════════════════════════════════════════════════════════════
 
 CHECKS = [
@@ -335,7 +336,7 @@ CHECKS = [
     # NCSA count: 4 + 2 + 2 + 3 = 11 ✓
 
     # ═════════════════════════════════════════════════════════════════
-    #  4. OWASP HTTP Security Headers — 11 items
+    #  4. OWASP HTTP Security Headers — 14 items
     # ═════════════════════════════════════════════════════════════════
 
     {"id": "owasp-01", "name": "Content-Security-Policy (CSP)",
@@ -402,11 +403,29 @@ CHECKS = [
      "standard": "owasp", "category": "HTTP Security Headers",
      "type": "custom", "eval_key": "set_cookie_owasp"},
 
-    # OWASP count: 11 ✓
+    {"id": "owasp-12", "name": "X-Permitted-Cross-Domain-Policies",
+     "name_th": "ห้าม Flash/PDF โหลดข้อมูลข้ามโดเมน",
+     "standard": "owasp", "category": "HTTP Security Headers",
+     "type": "header", "header": "x-permitted-cross-domain-policies",
+     "validator": _v_xpcdp},
+
+    {"id": "owasp-13", "name": "Clear-Site-Data",
+     "name_th": "ล้างข้อมูล Browser เมื่อ Logout",
+     "standard": "owasp", "category": "HTTP Security Headers",
+     "type": "header", "header": "clear-site-data",
+     "validator": _v_clear_site_data},
+
+    {"id": "owasp-14", "name": "X-XSS-Protection",
+     "name_th": "ปิด XSS Auditor เก่าของเบราว์เซอร์",
+     "standard": "owasp", "category": "HTTP Security Headers",
+     "type": "header", "header": "x-xss-protection",
+     "validator": _v_xxssp},
+
+    # OWASP count: 14 ✓
 ]
 
-# Compile-time assertion: exactly 68
-assert len(CHECKS) == 68, f"CHECKS must have 68 items, got {len(CHECKS)}"
+# Compile-time assertion: exactly 71
+assert len(CHECKS) == 71, f"CHECKS must have 71 items, got {len(CHECKS)}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

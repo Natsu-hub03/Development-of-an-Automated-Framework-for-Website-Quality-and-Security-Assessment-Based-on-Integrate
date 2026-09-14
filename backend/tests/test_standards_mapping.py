@@ -23,8 +23,8 @@ from services.standards.evaluators import (
 
 
 def test_checks_count_and_constants():
-    """Verify exactly 68 checks are defined and all status constants exist."""
-    assert len(CHECKS) == 68
+    """Verify exactly 71 checks are defined and all status constants exist."""
+    assert len(CHECKS) == 71
     assert len(STANDARDS_META) == 4
     assert PASS == "pass"
     assert FAIL == "fail"
@@ -139,14 +139,14 @@ def test_eval_server_info_and_tls_info_status():
 
 
 def test_build_standards_report():
-    """Verify complete 68-item report generation."""
+    """Verify complete 71-item report generation."""
     report = build_standards_report("https://example.com")
     assert report["url"] == "https://example.com"
-    assert report["summary"]["total"] == 68
+    assert report["summary"]["total"] == 71
     assert len(report["standards"]) == 4
 
     total_checks = sum(s["total"] for s in report["standards"])
-    assert total_checks == 68
+    assert total_checks == 71
 
 
 def test_build_single_standard_report():

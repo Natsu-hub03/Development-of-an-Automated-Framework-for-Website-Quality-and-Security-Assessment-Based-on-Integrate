@@ -282,6 +282,28 @@ def _v_cache(val):
         f"Cache-Control อาจไม่ปลอดภัยสำหรับหน้าที่มีข้อมูลสำคัญ: {val}"
 
 
+def _v_xpcdp(val):
+    v = val.strip().lower()
+    if v == "none":
+        return PASS, f"X-Permitted-Cross-Domain-Policies: {val}"
+    return WARNING, f"X-Permitted-Cross-Domain-Policies ควรเป็น 'none': {val}"
+
+
+def _v_clear_site_data(val):
+    # Presence is sufficient; value should contain at least one directive
+    if val.strip():
+        return PASS, f"Clear-Site-Data: {val[:120]}"
+    return WARNING, "Clear-Site-Data header ว่างเปล่า"
+
+
+def _v_xxssp(val):
+    v = val.strip()
+    if v == "0":
+        return PASS, "X-XSS-Protection: 0 (ปิด XSS Auditor ตามแนว OWASP)"
+    return WARNING, \
+        f"X-XSS-Protection ควรเป็น '0' เพื่อปิด XSS Auditor เก่า: {val}"
+
+
 # ── Custom evaluators (NCSA + OWASP Set-Cookie) ──────────────────────────────
 
 def _eval_https_redirect(check, hdr, wap, zap):
