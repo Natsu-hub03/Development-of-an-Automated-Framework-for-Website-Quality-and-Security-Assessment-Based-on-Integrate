@@ -420,6 +420,7 @@ CHECKS = [
      "type": "header", "header": "clear-site-data",
      "validator": _v_clear_site_data},
 
+
     # OWASP count: 14 ✓
 ]
 

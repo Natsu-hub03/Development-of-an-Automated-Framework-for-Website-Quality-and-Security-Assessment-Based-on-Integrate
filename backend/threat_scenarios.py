@@ -20,7 +20,7 @@ THREAT_SCENARIOS: dict[str, str] = {
     "ncsa-10": "ซอฟต์แวร์มีช่องโหว่ CVE สาธารณะที่ยังไม่แพตช์ แฮกเกอร์สามารถใช้ Exploit สำเร็จรูปทำ RCE เพื่อยึดการควบคุม Web Server ได้ทันที",
     "ncsa-11": "หน้า Admin หรือ Login ที่เปิดสู่ Public เสี่ยงต่อการถูก Brute Force หรือ Credential Stuffing จนระบบหลังบ้านถูกยึดครอง",
 
-    # ── OWASP HTTP Security Headers (11 security items) ───────────
+    # ── OWASP HTTP Security Headers (14 security items) ───────────
     "owasp-01": "เมื่อไม่มี CSP แฮกเกอร์สามารถทำ Stored/Reflected XSS ฝัง JavaScript อันตราย ขโมย Session Token และ Redirect ผู้ใช้ไป Phishing",
     "owasp-02": "ขาด HSTS เสี่ยงต่อ SSL Stripping ทำให้ผู้โจมตีในเครือข่ายเดียวกันดักจับ Plaintext Credentials และข้อมูลธุรกรรมของผู้ใช้",
     "owasp-03": "ขาด X-Frame-Options เปิดทางให้ทำ UI Redressing หรือ Clickjacking หลอกให้เหยื่อกดปุ่มสำคัญ เช่น อนุมัติการจ่ายเงินหรือลบบัญชี",
@@ -32,6 +32,9 @@ THREAT_SCENARIOS: dict[str, str] = {
     "owasp-09": "ขาด Cross-Origin-Resource-Policy (CORP) เปิดให้เว็บภายนอก Hotlink และดึง Private API Data หรือรูปภาพสำคัญไปใช้งานโดยไม่ได้รับอนุญาต",
     "owasp-10": "ขาด Cache-Control: no-store ทำให้ข้อมูลส่วนบุคคลถูกแคชในเครื่องสาธารณะ ผู้ใช้รายอื่นสามารถกด Back ดึงข้อมูล PII ขึ้นมาดูได้",
     "owasp-11": "Session Cookie ที่ขาด Secure/HttpOnly/SameSite เสี่ยงต่อการถูกขโมยผ่าน XSS/Network Sniffing และถูกโจมตีแบบ CSRF เพื่อเข้ายึด Session",
+    "owasp-12": "ขาด X-Permitted-Cross-Domain-Policies: none ทำให้ Flash/PDF Reader โหลด Cross-Domain Policy แล้วดึงข้อมูลข้ามโดเมนโดยไม่ได้รับอนุญาต เสี่ยงต่อ Data Exfiltration",
+    "owasp-13": "ขาด Clear-Site-Data header บนหน้า Logout ทำให้ Session Token, Cache และ Storage ยังคงค้างอยู่ในเบราว์เซอร์ ผู้ใช้รายถัดไปบนเครื่องสาธารณะสามารถกลับเข้าสู่ระบบได้",
+    "owasp-14": "การตั้ง X-XSS-Protection เป็นค่าอื่นที่ไม่ใช่ 0 อาจทำให้เบราว์เซอร์เก่าเกิด XSS Auditor Bypass ซึ่งแฮกเกอร์ใช้เทคนิค Selective Script Blocking เพื่อ Inject โค้ดอันตราย",
 }
 
 
