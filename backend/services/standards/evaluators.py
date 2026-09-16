@@ -282,6 +282,44 @@ def _v_cache(val):
         f"Cache-Control อาจไม่ปลอดภัยสำหรับหน้าที่มีข้อมูลสำคัญ: {val}"
 
 
+def _v_xxss(val):
+    """X-XSS-Protection: OWASP recommends '0' or absent. '1; mode=block' is deprecated."""
+    v = val.strip()
+    if v == "0":
+        return PASS, "X-XSS-Protection: 0 (ปิดตัวกรอง XSS ที่ล้าสมัยตามคำแนะนำ OWASP)"
+    return WARNING, (
+        f"X-XSS-Protection: {val} — OWASP แนะนำให้ตั้งค่าเป็น 0 หรือไม่ส่ง Header นี้เลย "
+        f"เนื่องจากตัวกรอง XSS ในเบราว์เซอร์ล้าสมัยและอาจสร้างช่องโหว่ใหม่ ใช้ CSP แทน"
+    )
+
+
+def _v_xpcdp(val):
+    """X-Permitted-Cross-Domain-Policies: should be 'none'."""
+    v = val.strip().lower()
+    if v == "none":
+        return PASS, f"X-Permitted-Cross-Domain-Policies: {val}"
+    safe = ["master-only", "by-content-type", "by-ftp-filename"]
+    if v in safe:
+        return WARNING, (
+            f"X-Permitted-Cross-Domain-Policies: {val} — "
+            f"OWASP แนะนำ 'none' เพื่อปิดกั้นโดยสมบูรณ์"
+        )
+    return FAIL, f"X-Permitted-Cross-Domain-Policies ค่าไม่ปลอดภัย: {val}"
+
+
+def _v_clear_site_data(val):
+    """Clear-Site-Data: presence is good; check it contains useful directives."""
+    v = val.strip().lower()
+    directives = ['"cache"', '"cookies"', '"storage"', '"*"']
+    found = [d for d in directives if d in v]
+    if found:
+        return PASS, f"Clear-Site-Data: {val}"
+    return WARNING, (
+        f"Clear-Site-Data มีค่าแต่ไม่พบ directive ที่รู้จัก: {val} — "
+        f"ควรระบุ \"cache\", \"cookies\", \"storage\" หรือ \"*\""
+    )
+
+
 # ── Custom evaluators (NCSA + OWASP Set-Cookie) ──────────────────────────────
 
 def _eval_https_redirect(check, hdr, wap, zap):
@@ -400,11 +438,17 @@ def _eval_server_info(check, hdr, wap, zap):
     si = hdr.get("server_info", {})
     server = si.get("server")
     xpb = si.get("x-powered-by")
+    x_aspnet = si.get("x-aspnet-version")
+    x_aspnetmvc = si.get("x-aspnetmvc-version")
     issues = []
     if server:
         issues.append(f"Server: {server}")
     if xpb:
         issues.append(f"X-Powered-By: {xpb}")
+    if x_aspnet:
+        issues.append(f"X-AspNet-Version: {x_aspnet}")
+    if x_aspnetmvc:
+        issues.append(f"X-AspNetMvc-Version: {x_aspnetmvc}")
     if not issues:
         res = _make(check, PASS, "ไม่พบการเปิดเผยข้อมูลเซิร์ฟเวอร์", "headers-scan")
         res["evidence"] = [{
@@ -726,6 +770,36 @@ def _eval_set_cookie_owasp(check, hdr, wap, zap):
     return res
 
 
+def _eval_xxss_deprecated(check, hdr, wap, zap):
+    """Check if X-XSS-Protection is set to a deprecated/dangerous value."""
+    if not hdr:
+        return _make(check, WARNING, "ยังไม่ได้รัน headers scan", "headers-scan")
+    sec_headers = hdr.get("security_headers", {})
+    val = sec_headers.get("x-xss-protection")
+    if not val:
+        # Not present = good (OWASP says don't send it, or send 0)
+        res = _make(check, PASS,
+                    "ไม่พบ X-XSS-Protection header (ถูกต้องตาม OWASP)",
+                    "headers-scan")
+        res["evidence"] = [{
+            "target": ["HTTP Response Headers"],
+            "html": "X-XSS-Protection: Not present (Correct)",
+            "passed_summary": "ไม่ส่ง Header ตัวกรอง XSS ที่ล้าสมัย ถูกต้องตามแนวทาง OWASP",
+        }]
+        res["evidence_type"] = "header"
+        return res
+    status, detail = _v_xxss(val)
+    res = _make(check, status, detail, "headers-scan")
+    res["evidence"] = [{
+        "target": ["HTTP Header: X-XSS-Protection"],
+        "html": f"X-XSS-Protection: {val}",
+        "failureSummary": detail if status != PASS else None,
+        "passed_summary": detail if status == PASS else None,
+    }]
+    res["evidence_type"] = "header"
+    return res
+
+
 # ── Custom evaluator dispatch table ──────────────────────────────────────────
 CUSTOM_EVAL = {
     "https_redirect": _eval_https_redirect,
@@ -740,6 +814,7 @@ CUSTOM_EVAL = {
     "cve": _eval_cve,
     "admin_urls": _eval_admin_urls,
     "set_cookie_owasp": _eval_set_cookie_owasp,
+    "xxss_deprecated": _eval_xxss_deprecated,
 }
 
 

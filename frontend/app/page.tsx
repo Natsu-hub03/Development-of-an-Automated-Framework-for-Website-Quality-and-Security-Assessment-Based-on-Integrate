@@ -52,11 +52,11 @@ export default function Home() {
                     disabled={scan.loading}
                     aria-pressed={scan.scanType === type}
                   >
-                    {type === 'standards'    && '📋 ทั้งหมด (68 ข้อ)'}
+                    {type === 'standards'    && '📋 ทั้งหมด (71 ข้อ)'}
                     {type === 'wcag'          && '♿ WCAG (37 ข้อ)'}
                     {type === 'cwv'           && '📊 Web Vitals & SEO (9 ข้อ)'}
                     {type === 'ncsa'          && '🛡️ สกมช. (11 ข้อ)'}
-                    {type === 'owasp'         && '🔒 OWASP Headers (11 ข้อ)'}
+                    {type === 'owasp'         && '🔒 OWASP Headers (14 ข้อ)'}
                     {hasResult && <span className="scan-tab-badge" title="มีผลสแกนแล้ว">✓</span>}
                   </button>
                 );

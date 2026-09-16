@@ -216,11 +216,16 @@ async function scan(url) {
                 'cross-origin-embedder-policy': h['cross-origin-embedder-policy'] || null,
                 'cross-origin-resource-policy': h['cross-origin-resource-policy'] || null,
                 'cache-control': h['cache-control'] || null,
+                'x-xss-protection': h['x-xss-protection'] || null,
+                'x-permitted-cross-domain-policies': h['x-permitted-cross-domain-policies'] || null,
+                'clear-site-data': h['clear-site-data'] || null,
             },
             // Server info disclosure
             server_info: {
                 server: h['server'] || null,
                 'x-powered-by': h['x-powered-by'] || null,
+                'x-aspnet-version': h['x-aspnet-version'] || null,
+                'x-aspnetmvc-version': h['x-aspnetmvc-version'] || null,
             },
         };
 

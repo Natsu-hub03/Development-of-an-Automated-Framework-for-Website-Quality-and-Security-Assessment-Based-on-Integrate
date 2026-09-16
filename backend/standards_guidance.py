@@ -1,11 +1,11 @@
 """
 standards_guidance.py
 Provides Thai explanations (why_th) and actionable remediation guides (remediation_th)
-with code examples for all 68 items across 4 web standards:
+with code examples for all 71 items across 4 web standards:
 1. WCAG 2.1 (37 items)
 2. Core Web Vitals & SEO (9 items)
 3. NCSA / สกมช. (11 items)
-4. OWASP Secure Headers (11 items)
+4. OWASP Secure Headers (14 items)
 """
 
 GUIDANCE: dict[str, dict[str, str]] = {
@@ -295,6 +295,18 @@ GUIDANCE: dict[str, dict[str, str]] = {
     "owasp-11": {
         "why_th": "หาก Cookie ไม่มี Secure แฮกเกอร์ดักจับ Session ผ่าน HTTP ได้ หากไม่มี HttpOnly สคริปต์ XSS ขโมย Cookie ด้วย document.cookie ได้ หากไม่มี SameSite แฮกเกอร์ส่งคำสั่ง CSRF แทนผู้ใช้ เช่น โอนเงิน เปลี่ยนอีเมล ลบบัญชี",
         "remediation_th": "กำหนดค่า Cookie ทุกตัวด้วย: Set-Cookie: name=value; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400",
+    },
+    "owasp-12": {
+        "why_th": "X-XSS-Protection เป็น Header ล้าสมัยที่เบราว์เซอร์สมัยใหม่ไม่รองรับแล้ว หากตั้งค่า '1; mode=block' ตัวกรอง XSS ของเบราว์เซอร์เก่าอาจถูกแฮกเกอร์ใช้ประโยชน์สร้างช่องโหว่ Side-channel ใหม่ OWASP แนะนำให้ใช้ Content-Security-Policy แทน",
+        "remediation_th": "ลบ Header X-XSS-Protection ออกทั้งหมด หรือตั้งค่าเป็น X-XSS-Protection: 0 และใช้ Content-Security-Policy ป้องกัน XSS แทน",
+    },
+    "owasp-13": {
+        "why_th": "หากไม่มี X-Permitted-Cross-Domain-Policies เอกสาร Adobe Flash (SWF) และ PDF สามารถร้องขอข้อมูลข้ามโดเมนจากเซิร์ฟเวอร์ได้ ผู้โจมตีสามารถใช้ไฟล์ Flash ฝังในเว็บอื่นเพื่อดึงข้อมูลที่ผู้ใช้ล็อกอินไว้ แม้ Flash เลิกใช้แล้วแต่ยังเป็น best practice ที่ OWASP แนะนำ",
+        "remediation_th": "เพิ่ม Header: X-Permitted-Cross-Domain-Policies: none",
+    },
+    "owasp-14": {
+        "why_th": "หากไม่มี Clear-Site-Data ในหน้า Logout ข้อมูลของผู้ใช้จะค้างในเบราว์เซอร์ (Cookie, LocalStorage, Cache) แม้ผู้ใช้ออกจากระบบแล้ว ผู้ใช้คนถัดไปบนเครื่องเดียวกันอาจเข้าถึงข้อมูลที่ค้างอยู่ หรือ Session Token เก่ายังใช้งานได้",
+        "remediation_th": "เพิ่ม Header ในหน้า Logout: Clear-Site-Data: \"cache\", \"cookies\", \"storage\" (ระวัง: ห้ามใช้ทุกหน้า ใช้เฉพาะ endpoint ที่ต้องการล้างข้อมูลเท่านั้น)",
     },
 }
 

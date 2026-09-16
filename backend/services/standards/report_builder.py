@@ -80,7 +80,7 @@ def build_standards_report(
     wappalyzer_data: Any = None,
     zap_data: Any = None,
 ) -> dict:
-    """Build the complete 68-item standards compliance report."""
+    """Build the complete standards compliance report."""
 
     # Normalize — unwrap API response envelopes
     axe = _extract(axe_data)
@@ -103,7 +103,7 @@ def build_standards_report(
         "url": url,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "summary": {
-            "total": 68,
+            "total": len(CHECKS),
             "passed": total_p,
             "failed": total_f,
             "warning": total_w,

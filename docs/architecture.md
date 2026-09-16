@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-ระบบประเมินมาตรฐานและความปลอดภัยของเว็บไซต์แบบอัตโนมัติ (Automated Web Standards & Security Assessment System) ที่ผสานรวมการตรวจสอบมาตรฐานสากล 4 ด้าน (68 รายการ), การสแกนช่องโหว่ความปลอดภัย และการวิเคราะห์สรุปผลด้วย AI (Local LLM via Ollama)
+ระบบประเมินมาตรฐานและความปลอดภัยของเว็บไซต์แบบอัตโนมัติ (Automated Web Standards & Security Assessment System) ที่ผสานรวมการตรวจสอบมาตรฐานสากล 4 ด้าน (71 รายการ), การสแกนช่องโหว่ความปลอดภัย และการวิเคราะห์สรุปผลด้วย AI (Local LLM via Ollama)
 
 ## 2. System Architecture & Tech Stack
 
@@ -29,7 +29,7 @@ graph TD
 
 ---
 
-## 3. Standards & Scanning Modules (68 Checklist Items)
+## 3. Standards & Scanning Modules (71 Checklist Items)
 
 ระบบรองรับการสแกนและประเมินมาตรฐาน 4 ด้านหลัก (นิยามใน `backend/services/standards_mapping.py`):
 
@@ -44,13 +44,13 @@ graph TD
    - ประเมิน: SSL/TLS, Security Headers, Cookie flags, Outdated libraries
 4. **OWASP Security Headers & Vulnerabilities**:
    - ตรวจสอบโดย: `headers_scan.js` + `OWASP ZAP`
-   - ประเมิน: HSTS, CSP, X-Frame-Options, CORS, SQLi/XSS alerts
+   - ประเมิน: HSTS, CSP, X-Frame-Options, CORS, X-XSS-Protection, X-Permitted-Cross-Domain-Policies, Clear-Site-Data, SQLi/XSS alerts
 
 ---
 
 ## 4. Key Backend API Endpoints
 
-- `POST /scan/standards`: สแกนทุก Tools พร้อมกันแบบขนาน (Concurrent) แล้วแปลงเป็น 68-item Standards Report
+- `POST /scan/standards`: สแกนทุก Tools พร้อมกันแบบขนาน (Concurrent) แล้วแปลงเป็น 71-item Standards Report
 - `POST /scan/standard/{standard_id}`: สแกนเฉพาะมาตรฐานที่เลือก (`wcag`, `cwv`, `ncsa`, `owasp`)
 - `POST /scan/wappalyzer`: สแกนตรวจจับเทคโนโลยี (Tech Stack profiling)
 - `POST /scan/lighthouse`: สแกน Web Vitals & Accessibility

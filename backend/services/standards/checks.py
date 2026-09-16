@@ -1,8 +1,8 @@
 """
-Master checklist data — exactly 68 items across 4 web standards.
+Master checklist data — exactly 71 items across 4 web standards.
 
 This module contains pure data definitions only:
-- CHECKS: The 68 checklist items with their rules, types, and metadata
+- CHECKS: The 71 checklist items with their rules, types, and metadata
 - STANDARDS_META: Display metadata for each standard
 - STANDARD_TOOLS: Which scanner tools each standard requires
 - VALID_STANDARD_IDS: Set of valid standard identifiers
@@ -11,11 +11,12 @@ This module contains pure data definitions only:
 from services.standards.evaluators import (
     _v_csp, _v_hsts, _v_xfo, _v_xcto,
     _v_referrer, _v_coop, _v_coep, _v_corp, _v_cache,
+    _v_xxss, _v_xpcdp, _v_clear_site_data,
 )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Master Checklist — exactly 68 items
+#  Master Checklist — exactly 71 items
 # ══════════════════════════════════════════════════════════════════════════════
 
 CHECKS = [
@@ -335,7 +336,7 @@ CHECKS = [
     # NCSA count: 4 + 2 + 2 + 3 = 11 ✓
 
     # ═════════════════════════════════════════════════════════════════
-    #  4. OWASP HTTP Security Headers — 11 items
+    #  4. OWASP HTTP Security Headers — 14 items
     # ═════════════════════════════════════════════════════════════════
 
     {"id": "owasp-01", "name": "Content-Security-Policy (CSP)",
@@ -402,11 +403,28 @@ CHECKS = [
      "standard": "owasp", "category": "HTTP Security Headers",
      "type": "custom", "eval_key": "set_cookie_owasp"},
 
-    # OWASP count: 11 ✓
+    {"id": "owasp-12", "name": "X-XSS-Protection (Deprecated Check)",
+     "name_th": "ตรวจตัวกรอง XSS ล้าสมัย",
+     "standard": "owasp", "category": "HTTP Security Headers",
+     "type": "custom", "eval_key": "xxss_deprecated"},
+
+    {"id": "owasp-13", "name": "X-Permitted-Cross-Domain-Policies",
+     "name_th": "ป้องกัน Cross-domain จาก Flash/PDF",
+     "standard": "owasp", "category": "HTTP Security Headers",
+     "type": "header", "header": "x-permitted-cross-domain-policies",
+     "validator": _v_xpcdp},
+
+    {"id": "owasp-14", "name": "Clear-Site-Data",
+     "name_th": "ล้างข้อมูลค้างในเบราว์เซอร์",
+     "standard": "owasp", "category": "HTTP Security Headers",
+     "type": "header", "header": "clear-site-data",
+     "validator": _v_clear_site_data},
+
+    # OWASP count: 14 ✓
 ]
 
-# Compile-time assertion: exactly 68
-assert len(CHECKS) == 68, f"CHECKS must have 68 items, got {len(CHECKS)}"
+# Compile-time assertion: exactly 71
+assert len(CHECKS) == 71, f"CHECKS must have 71 items, got {len(CHECKS)}"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

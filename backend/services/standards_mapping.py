@@ -35,6 +35,7 @@ from services.standards.evaluators import (
     _eval_cve,
     _eval_admin_urls,
     _eval_set_cookie_owasp,
+    _eval_xxss_deprecated,
 )
 
 __all__ = [
