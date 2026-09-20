@@ -290,10 +290,14 @@ async def analyze_with_ai(
         )
 
     # Persist AI report to database — wrap sync DB in executor
+    # NOTE: We create a fresh session here because run_in_executor runs in a
+    # different thread, and SQLAlchemy sessions are not thread-safe.
     def _persist_ai_report():
+        from db.database import SessionLocal
+        local_db = SessionLocal()
         try:
             recent_scan = (
-                db.query(Scan)
+                local_db.query(Scan)
                 .filter(Scan.url == request.url)
                 .order_by(Scan.created_at.desc())
                 .first()
@@ -306,15 +310,17 @@ async def analyze_with_ai(
                     model_name=OLLAMA_MODEL,
                     analysis_text=analysis_text,
                 )
-                db.add(ai_report)
-                db.commit()
+                local_db.add(ai_report)
+                local_db.commit()
                 logger.info(
                     "AI report saved for scan_id=%d, url=%s",
                     recent_scan.id, request.url,
                 )
         except Exception as e:
-            db.rollback()
+            local_db.rollback()
             logger.warning("Failed to persist AI report: %s", e)
+        finally:
+            local_db.close()
 
     import asyncio
     try:

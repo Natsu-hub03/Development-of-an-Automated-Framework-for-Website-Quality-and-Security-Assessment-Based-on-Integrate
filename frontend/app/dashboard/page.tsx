@@ -8,6 +8,7 @@ import { ScoreRing } from '../../components/dashboard/ScoreRing';
 import { StandardsGrid } from '../../components/dashboard/StandardsGrid';
 import { ChecklistDetails } from '../../components/dashboard/ChecklistDetails';
 import { TechStackGrid } from '../../components/dashboard/TechStackGrid';
+import { PrintReport } from '../../components/dashboard/PrintReport';
 
 export default function DashboardPage() {
   const [data, setData] = useState<StandardsReportData | null>(null);
@@ -148,59 +149,67 @@ export default function DashboardPage() {
             </div>
           </header>
 
-          {/* Overall Score Ring */}
-          <ScoreRing passRate={passRate} grade={grade} />
+          {/* Interactive Dashboard Content */}
+          <div className="dashboard-screen-content">
+            {/* Overall Score Ring */}
+            <ScoreRing passRate={passRate} grade={grade} />
 
-          {/* Summary Stats */}
-          <div className="dash-stats-grid" role="group" aria-label="Summary Statistics">
-            <div className="dash-stat-card dash-stat-card--total">
-              <div className="dash-stat-icon">📋</div>
-              <div className="dash-stat-value">{summary.total}</div>
-              <div className="dash-stat-label">รายการทั้งหมด</div>
-              <div className="dash-stat-sub">{standards.length} มาตรฐาน</div>
+            {/* Summary Stats */}
+            <div className="dash-stats-grid" role="group" aria-label="Summary Statistics">
+              <div className="dash-stat-card dash-stat-card--total">
+                <div className="dash-stat-icon">📋</div>
+                <div className="dash-stat-value">{summary.total}</div>
+                <div className="dash-stat-label">รายการทั้งหมด</div>
+                <div className="dash-stat-sub">{standards.length} มาตรฐาน</div>
+              </div>
+              <div className="dash-stat-card dash-stat-card--pass">
+                <div className="dash-stat-icon">✅</div>
+                <div className="dash-stat-value">{summary.passed}</div>
+                <div className="dash-stat-label">ผ่าน</div>
+                <div className="dash-stat-sub">{passRate}%</div>
+              </div>
+              <div className="dash-stat-card dash-stat-card--fail">
+                <div className="dash-stat-icon">❌</div>
+                <div className="dash-stat-value">{summary.failed}</div>
+                <div className="dash-stat-label">ไม่ผ่าน</div>
+                <div className="dash-stat-sub">{failRate}%</div>
+              </div>
+              <div className="dash-stat-card dash-stat-card--warn">
+                <div className="dash-stat-icon">⚠️</div>
+                <div className="dash-stat-value">{summary.warning}</div>
+                <div className="dash-stat-label">เตือน</div>
+                <div className="dash-stat-sub">{warnRate}%</div>
+              </div>
             </div>
-            <div className="dash-stat-card dash-stat-card--pass">
-              <div className="dash-stat-icon">✅</div>
-              <div className="dash-stat-value">{summary.passed}</div>
-              <div className="dash-stat-label">ผ่าน</div>
-              <div className="dash-stat-sub">{passRate}%</div>
-            </div>
-            <div className="dash-stat-card dash-stat-card--fail">
-              <div className="dash-stat-icon">❌</div>
-              <div className="dash-stat-value">{summary.failed}</div>
-              <div className="dash-stat-label">ไม่ผ่าน</div>
-              <div className="dash-stat-sub">{failRate}%</div>
-            </div>
-            <div className="dash-stat-card dash-stat-card--warn">
-              <div className="dash-stat-icon">⚠️</div>
-              <div className="dash-stat-value">{summary.warning}</div>
-              <div className="dash-stat-label">เตือน</div>
-              <div className="dash-stat-sub">{warnRate}%</div>
-            </div>
+
+            {/* Per-Standard Gauge Cards */}
+            <StandardsGrid
+              standards={standards}
+              selectedStandard={selectedStandard}
+              onCardClick={handleCardClick}
+              onTagClick={handleTagClick}
+            />
+
+            {/* Checklist Details */}
+            <ChecklistDetails
+              standards={standards}
+              selectedStandard={selectedStandard}
+              onClearStandard={() => setSelectedStandard(null)}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              failedItems={failedItems}
+              warningItems={warningItems}
+              passedItems={passedItems}
+            />
+
+            {/* Tech Stack */}
+            <TechStackGrid technologies={technologies} />
           </div>
 
-          {/* Per-Standard Gauge Cards */}
-          <StandardsGrid
-            standards={standards}
-            selectedStandard={selectedStandard}
-            onCardClick={handleCardClick}
-            onTagClick={handleTagClick}
-          />
-
-          {/* Checklist Details */}
-          <ChecklistDetails
-            standards={standards}
-            selectedStandard={selectedStandard}
-            onClearStandard={() => setSelectedStandard(null)}
-            activeFilter={activeFilter}
-            onFilterChange={setActiveFilter}
-            failedItems={failedItems}
-            warningItems={warningItems}
-            passedItems={passedItems}
-          />
-
-          {/* Tech Stack */}
-          <TechStackGrid technologies={technologies} />
+          {/* Pentest-Tools Style Printable Report */}
+          <div className="print-report-wrapper">
+            <PrintReport data={data} />
+          </div>
 
           {/* Footer */}
           <footer className="footer" id="site-footer">

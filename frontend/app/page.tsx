@@ -5,7 +5,6 @@ import Link from 'next/link';
 import type { ScanType, StandardReport } from '../lib/types';
 import { Navbar } from '../components/ui/Navbar';
 import { HeroSection } from '../components/ui/HeroSection';
-import { FeatureCards } from '../components/ui/FeatureCards';
 import { StandardsReportPanel } from '../components/panels/StandardsReportPanel';
 import { useScanState } from '../hooks/useScanState';
 import { unwrapReportData } from '../lib/utils';
@@ -147,8 +146,6 @@ export default function Home() {
             )}
           </section>
         </main>
-
-        <FeatureCards />
 
         {/* Footer */}
         <footer className="footer" id="site-footer">

@@ -191,6 +191,7 @@ async def run_zap_scan(url: str) -> dict | None:
                 **params,
                 "url": url,
                 "maxChildren": "10",
+                "maxDepth": "1",
                 "recurse": "true",
                 "subtreeOnly": "true",
             }
