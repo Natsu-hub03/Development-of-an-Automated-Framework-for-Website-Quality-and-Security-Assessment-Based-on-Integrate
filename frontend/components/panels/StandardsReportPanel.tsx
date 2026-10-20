@@ -80,6 +80,33 @@ export function StandardsReportPanel({
 
   return (
     <div className="standards-report">
+      {reportData?.unreachable && (
+        <div
+          className="standards-unreachable-banner"
+          style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderRadius: '8px',
+            padding: '14px 18px',
+            marginBottom: '16px',
+            color: '#f87171',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <span style={{ fontSize: '24px', lineHeight: 1 }}>⚠️</span>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '15px', color: '#fca5a5' }}>
+              เว็บไซต์นี้ไม่สามารถเข้าถึงได้ (เว็บปิด / โดเมนไม่ถูกต้อง)
+            </div>
+            <div style={{ fontSize: '13px', color: '#f87171', marginTop: '2px', opacity: 0.9 }}>
+              สาเหตุ: {reportData.unreachable_reason || 'การเชื่อมต่อล้มเหลว (DNS Error / เซิร์ฟเวอร์ปิดให้บริการ)'} — ระบบประเมินผลเป็น 0 คะแนนตามเกณฑ์
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Summary Bar */}
       <div className="standards-summary">
         <div className="standards-summary-title">

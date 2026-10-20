@@ -70,7 +70,7 @@ async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
 
     # Pre-validation check: หากเป็นเว็บที่ตายจริง (404/DNS/Crash/Blank) ให้คะแนนเป็น 0 ทันที
     try:
-        from check_sites_reachable import check_url
+        from services.reachability import check_url
         reachability = await loop.run_in_executor(None, check_url, url_str)
         if not reachability.get("reachable"):
             err_msg = reachability.get("error_type") or reachability.get("error") or "หน้าเว็บไม่พร้อมใช้งาน"
@@ -173,7 +173,7 @@ async def scan_single_standard(
 
     # Pre-validation check: หากเป็นเว็บที่ตายจริง (404/DNS/Crash/Blank) ให้คะแนนเป็น 0 ทันที
     try:
-        from check_sites_reachable import check_url
+        from services.reachability import check_url
         reachability = await loop.run_in_executor(None, check_url, url_str)
         if not reachability.get("reachable"):
             err_msg = reachability.get("error_type") or reachability.get("error") or "หน้าเว็บไม่พร้อมใช้งาน"

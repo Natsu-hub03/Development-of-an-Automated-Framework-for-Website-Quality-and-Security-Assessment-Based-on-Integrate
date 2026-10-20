@@ -37,6 +37,9 @@ async function scan(url) {
         });
 
         const lhr = result.lhr;
+        if (lhr.runtimeError) {
+            throw new Error(`Lighthouse failed to load URL: ${lhr.runtimeError.message || lhr.runtimeError.code}`);
+        }
 
         // Extract category scores (0-1 → 0-100)
         const categories = {};

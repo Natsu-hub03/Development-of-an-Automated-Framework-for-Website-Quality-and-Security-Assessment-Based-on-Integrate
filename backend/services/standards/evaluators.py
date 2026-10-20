@@ -21,8 +21,9 @@ from services.standards.i18n import RULE_FAIL_TH, RULE_PASS_TH
 
 def _eval_axe(check: dict, axe_data: Optional[dict]) -> dict:
     """Evaluate WCAG check against axe-core violations/incomplete."""
-    if not axe_data:
-        return _make(check, WARNING, "ยังไม่ได้รัน axe-core scan", "axe-core")
+    if not axe_data or axe_data.get("error"):
+        err = (axe_data or {}).get("error", "ยังไม่ได้รัน axe-core scan")
+        return _make(check, WARNING, f"axe-core: {err}", "axe-core")
 
     rules = check["rules"]
     violations = axe_data.get("violations", [])
@@ -133,8 +134,13 @@ def _eval_axe(check: dict, axe_data: Optional[dict]) -> dict:
 
 def _eval_lh(check: dict, lh_data: Optional[dict]) -> dict:
     """Evaluate check against Lighthouse failed audits."""
-    if not lh_data:
-        return _make(check, WARNING, "ยังไม่ได้รัน Lighthouse scan", "lighthouse")
+    if not lh_data or lh_data.get("error"):
+        err = (lh_data or {}).get("error", "ยังไม่ได้รัน Lighthouse scan")
+        return _make(check, WARNING, f"Lighthouse: {err}", "lighthouse")
+
+    cats = lh_data.get("categories", {})
+    if not cats or all(c.get("score") is None for c in cats.values()):
+        return _make(check, WARNING, "Lighthouse ไม่สามารถโหลดหน้าเว็บเพื่อประเมินผลได้", "lighthouse")
 
     audit_ids = check["rules"]
     failed_audits = lh_data.get("failed_audits", [])

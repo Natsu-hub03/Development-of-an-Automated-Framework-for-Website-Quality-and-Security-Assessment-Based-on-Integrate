@@ -35,23 +35,37 @@ async function scan(url) {
         // Bypass CSP so axe-core can inject its script into the page
         await page.setBypassCSP(true);
 
+        let navError = null;
         try {
             await page.goto(url, {
                 waitUntil: 'networkidle2',
                 timeout: 30000,
             });
-        } catch (_) {
+        } catch (e1) {
+            navError = e1;
             try {
                 await page.goto(url, {
                     waitUntil: 'load',
                     timeout: 20000,
                 });
-            } catch (__) {
-                await page.goto(url, {
-                    waitUntil: 'domcontentloaded',
-                    timeout: 20000,
-                }).catch(() => {});
+                navError = null;
+            } catch (e2) {
+                navError = e2;
+                try {
+                    await page.goto(url, {
+                        waitUntil: 'domcontentloaded',
+                        timeout: 20000,
+                    });
+                    navError = null;
+                } catch (e3) {
+                    navError = e3;
+                }
             }
+        }
+
+        const currentUrl = page.url() || '';
+        if (navError || currentUrl.startsWith('chrome-error://') || currentUrl === 'about:blank') {
+            throw new Error(`Failed to navigate to ${url}: ${navError ? navError.message : 'Page unreachable (' + currentUrl + ')'}`);
         }
 
         // Wait a brief moment for any client-side redirect or meta refresh to settle

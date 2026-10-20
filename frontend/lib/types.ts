@@ -71,6 +71,8 @@ export interface StandardsReportData {
   summary: StandardsScanSummary;
   standards: StandardReport[];
   wappalyzer_technologies?: Technology[];
+  unreachable?: boolean;
+  unreachable_reason?: string;
 }
 
 export interface ScanApiResponse {

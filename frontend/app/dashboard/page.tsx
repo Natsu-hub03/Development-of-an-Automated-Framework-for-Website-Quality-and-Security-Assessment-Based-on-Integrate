@@ -151,6 +151,33 @@ export default function DashboardPage() {
 
           {/* Interactive Dashboard Content */}
           <div className="dashboard-screen-content">
+            {data.unreachable && (
+              <div
+                className="dash-unreachable-banner fade-in"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  borderRadius: '10px',
+                  padding: '16px 20px',
+                  marginBottom: '28px',
+                  color: '#f87171',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                }}
+              >
+                <span style={{ fontSize: '28px', lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '16px', color: '#fca5a5' }}>
+                    เว็บไซต์นี้ไม่สามารถเข้าถึงได้ / ปิดการใช้งาน
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#f87171', marginTop: '4px', opacity: 0.9 }}>
+                    สาเหตุ: {data.unreachable_reason || 'การเชื่อมต่อล้มเหลว (DNS Error / เซิร์ฟเวอร์ปิดให้บริการ)'} — ระบบจึงตัดผลการประเมินเป็น 0 คะแนนตามเกณฑ์
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Overall Score Ring */}
             <ScoreRing passRate={passRate} grade={grade} />
 
