@@ -152,3 +152,27 @@ def build_single_standard_report(
         },
         "standards": standards,
     }
+
+
+def build_unreachable_standards_report(url: str, reason: str = "เว็บไม่พร้อมใช้งาน (HTTP 404 / เซิร์ฟเวอร์ปิด)") -> dict:
+    """สร้างผลการประเมินมาตรฐาน 0 คะแนนสำหรับเว็บที่ตายจริงหรือเข้าไม่ได้"""
+    from services.standards.helpers import _make
+    results = [
+        _make(c, FAIL, f"ไม่สามารถเข้าถึงหน้าเว็บได้: {reason}", c.get("type", "scanner"))
+        for c in CHECKS
+    ]
+    standards = _build_standards_list(results)
+    return {
+        "url": url,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "summary": {
+            "total": len(CHECKS),
+            "passed": 0,
+            "failed": len(CHECKS),
+            "warning": 0,
+        },
+        "standards": standards,
+        "unreachable": True,
+        "unreachable_reason": reason,
+    }
+

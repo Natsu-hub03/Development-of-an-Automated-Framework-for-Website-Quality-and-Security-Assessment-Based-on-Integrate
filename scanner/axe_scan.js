@@ -1,5 +1,10 @@
+const fs = require('fs');
 const puppeteer = require('puppeteer');
-const { AxePuppeteer } = require('@axe-core/puppeteer');
+
+let axeSource = '';
+try {
+    axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
+} catch (_) {}
 
 async function scan(url) {
     if (!url) {
@@ -10,8 +15,10 @@ async function scan(url) {
 
     let browser;
     try {
+        const defaultChrome = process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : undefined;
         browser = await puppeteer.launch({
             headless: true,
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || defaultChrome,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -28,12 +35,42 @@ async function scan(url) {
         // Bypass CSP so axe-core can inject its script into the page
         await page.setBypassCSP(true);
 
-        await page.goto(url, {
-            waitUntil: 'networkidle2',
-            timeout: 30000,
-        });
+        try {
+            await page.goto(url, {
+                waitUntil: 'networkidle2',
+                timeout: 30000,
+            });
+        } catch (_) {
+            try {
+                await page.goto(url, {
+                    waitUntil: 'load',
+                    timeout: 20000,
+                });
+            } catch (__) {
+                await page.goto(url, {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 20000,
+                }).catch(() => {});
+            }
+        }
 
-        const results = await new AxePuppeteer(page).analyze();
+        // Wait a brief moment for any client-side redirect or meta refresh to settle
+        await new Promise(r => setTimeout(r, 1500));
+
+        let results;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                await page.evaluate(axeSource);
+                results = await page.evaluate(async () => await axe.run());
+                break;
+            } catch (err) {
+                if (err && err.message && (err.message.includes('destroyed') || err.message.includes('Target closed')) && attempt < 2) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    continue;
+                }
+                throw err;
+            }
+        }
 
         // Extract clean page-level metadata for rules that target html/document
         const pageTitle = await page.title();

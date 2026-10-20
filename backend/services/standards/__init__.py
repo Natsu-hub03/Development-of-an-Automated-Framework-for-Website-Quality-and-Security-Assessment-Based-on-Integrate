@@ -10,6 +10,7 @@ Re-exports the public API so consumers can import from
 from services.standards.report_builder import (
     build_standards_report,
     build_single_standard_report,
+    build_unreachable_standards_report,
 )
 from services.standards.checks import (
     CHECKS,

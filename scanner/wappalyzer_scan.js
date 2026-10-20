@@ -1,3 +1,11 @@
+const defaultChrome = process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : undefined;
+if (!process.env.CHROMIUM_BIN && defaultChrome) {
+    process.env.CHROMIUM_BIN = defaultChrome;
+}
+if (!process.env.PUPPETEER_EXECUTABLE_PATH && defaultChrome) {
+    process.env.PUPPETEER_EXECUTABLE_PATH = defaultChrome;
+}
+
 const Wappalyzer = require('wappalyzer-rm');
 
 async function scan(url) {
@@ -9,6 +17,7 @@ async function scan(url) {
 
     const wappalyzer = new Wappalyzer({
         browser: {
+            executablePath: process.env.CHROMIUM_BIN || defaultChrome,
             headless: true,
             args: [
                 '--no-sandbox',

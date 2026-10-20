@@ -17,6 +17,7 @@ from services.scanner import run_node_scanner, run_zap_scan, scanner_executor
 from services.standards import (
     build_standards_report,
     build_single_standard_report,
+    build_unreachable_standards_report,
     STANDARD_TOOLS,
     VALID_STANDARD_IDS,
 )
@@ -33,11 +34,67 @@ STANDARD_LABELS = {
 }
 
 
+@router.get("/count")
+def get_standards_count(db: Session = Depends(get_db)):
+    """Return count of saved scans."""
+    count = db.query(Scan).count()
+    return {"total_scans": count}
+
+
+@router.get("/records")
+def get_standards_records(db: Session = Depends(get_db)):
+    """Return all saved scan reports for excel recovery."""
+    results = (
+        db.query(Scan.id, Scan.url, Scan.created_at, ScanResult.raw_data)
+        .join(ScanResult, Scan.id == ScanResult.scan_id)
+        .filter(ScanResult.tool_name == "standards")
+        .order_by(Scan.id.asc())
+        .all()
+    )
+    records = []
+    for r in results:
+        records.append({
+            "scan_id": r[0],
+            "url": r[1],
+            "created_at": r[2].isoformat() if r[2] else None,
+            "report": r[3]
+        })
+    return {"total": len(records), "records": records}
+
+
 @router.post("/standards")
 async def scan_standards(request: ScanRequest, db: Session = Depends(get_db)):
     """Run all scanners and produce the 68-item standards compliance report."""
     url_str = str(request.url)
     loop = asyncio.get_running_loop()
+
+    # Pre-validation check: หากเป็นเว็บที่ตายจริง (404/DNS/Crash/Blank) ให้คะแนนเป็น 0 ทันที
+    try:
+        from check_sites_reachable import check_url
+        reachability = await loop.run_in_executor(None, check_url, url_str)
+        if not reachability.get("reachable"):
+            err_msg = reachability.get("error_type") or reachability.get("error") or "หน้าเว็บไม่พร้อมใช้งาน"
+            logger.info("Target %s is unreachable (%s) -> Assigning 0 score", url_str, err_msg)
+            report = build_unreachable_standards_report(url_str, reason=err_msg)
+            try:
+                scan = Scan(url=url_str, status="completed")
+                db.add(scan)
+                db.commit()
+                db.refresh(scan)
+
+                scan_result = ScanResult(
+                    scan_id=scan.id, tool_name="standards", raw_data=report
+                )
+                db.add(scan_result)
+                db.commit()
+                scan_id = scan.id
+            except Exception as e:
+                db.rollback()
+                logger.warning("Database write failed for unreachable scan: %s", e)
+                scan_id = None
+            return {"success": True, "scan_id": scan_id, "data": report}
+    except Exception as e:
+        logger.warning("Pre-check failed, proceeding to full scan: %s", e)
 
     # Run Node.js scanners in thread pool + ZAP async concurrently
     axe_future = loop.run_in_executor(
@@ -113,6 +170,21 @@ async def scan_single_standard(
     url_str = str(request.url)
     tools_needed = STANDARD_TOOLS[standard_id]
     loop = asyncio.get_running_loop()
+
+    # Pre-validation check: หากเป็นเว็บที่ตายจริง (404/DNS/Crash/Blank) ให้คะแนนเป็น 0 ทันที
+    try:
+        from check_sites_reachable import check_url
+        reachability = await loop.run_in_executor(None, check_url, url_str)
+        if not reachability.get("reachable"):
+            err_msg = reachability.get("error_type") or reachability.get("error") or "หน้าเว็บไม่พร้อมใช้งาน"
+            logger.info("Single-standard target %s is unreachable (%s) -> Assigning 0 score", url_str, err_msg)
+            report = build_unreachable_standards_report(url_str, reason=err_msg)
+            report["standards"] = [s for s in report["standards"] if s["id"] == standard_id]
+            total_items = sum(s["total"] for s in report["standards"])
+            report["summary"] = {"total": total_items, "passed": 0, "failed": total_items, "warning": 0}
+            return {"success": True, "scan_id": None, "data": report}
+    except Exception as e:
+        logger.warning("Pre-check failed, proceeding to scan: %s", e)
 
     # Run only the tools this standard requires
     futures = []
