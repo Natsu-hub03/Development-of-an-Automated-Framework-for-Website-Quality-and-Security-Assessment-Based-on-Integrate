@@ -19,6 +19,7 @@ async function scan(url) {
         browser = await puppeteer.launch({
             headless: true,
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || defaultChrome,
+            protocolTimeout: 120000,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -27,6 +28,9 @@ async function scan(url) {
                 '--disable-crash-reporter',
                 '--disable-breakpad',
                 '--no-zygote',
+                '--ignore-certificate-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--allow-running-insecure-content',
             ],
         });
 
@@ -34,68 +38,118 @@ async function scan(url) {
 
         // Bypass CSP so axe-core can inject its script into the page
         await page.setBypassCSP(true);
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'th,en-US;q=0.9,en;q=0.8',
+        });
 
-        let navError = null;
-        try {
-            await page.goto(url, {
-                waitUntil: 'networkidle2',
-                timeout: 30000,
-            });
-        } catch (e1) {
-            navError = e1;
+        async function attemptNavigation(targetUrl) {
             try {
-                await page.goto(url, {
-                    waitUntil: 'load',
-                    timeout: 20000,
-                });
-                navError = null;
-            } catch (e2) {
-                navError = e2;
-                try {
-                    await page.goto(url, {
-                        waitUntil: 'domcontentloaded',
-                        timeout: 20000,
-                    });
-                    navError = null;
-                } catch (e3) {
-                    navError = e3;
+                await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 8000 });
+                const curr = page.url() || '';
+                if (!curr.startsWith('chrome-error://') && curr !== 'about:blank') {
+                    return { success: true, finalUrl: curr };
                 }
+            } catch (e) {
+                return { success: false, error: e };
+            }
+            return { success: false, error: new Error('Blank page') };
+        }
+
+        let fallbackUrl = null;
+        if (url.startsWith('http://')) {
+            fallbackUrl = url.replace('http://', 'https://');
+        } else if (url.startsWith('https://')) {
+            fallbackUrl = url.replace('https://', 'http://');
+        }
+
+        let navResult = await attemptNavigation(url);
+        if (!navResult.success && fallbackUrl) {
+            const fbResult = await attemptNavigation(fallbackUrl);
+            if (fbResult.success) {
+                navResult = fbResult;
             }
         }
 
-        const currentUrl = page.url() || '';
-        if (navError || currentUrl.startsWith('chrome-error://') || currentUrl === 'about:blank') {
-            throw new Error(`Failed to navigate to ${url}: ${navError ? navError.message : 'Page unreachable (' + currentUrl + ')'}`);
+        let results;
+        async function evalAxeDirect() {
+            await page.evaluate(axeSource);
+            return await page.evaluate(async () => await axe.run(document, { iframes: false }));
         }
 
-        // Wait a brief moment for any client-side redirect or meta refresh to settle
-        await new Promise(r => setTimeout(r, 1500));
+        async function fetchCleanHtml(targetUrl) {
+            const urlsToTry = [targetUrl];
+            if (targetUrl.startsWith('http://')) {
+                urlsToTry.push(targetUrl.replace('http://', 'https://'));
+            } else if (targetUrl.startsWith('https://')) {
+                urlsToTry.push(targetUrl.replace('https://', 'http://'));
+            }
+            for (const u of urlsToTry) {
+                try {
+                    const resp = await fetch(u, {
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+                        signal: AbortSignal.timeout(10000)
+                    });
+                    if (resp.ok || resp.status < 400) {
+                        const html = await resp.text();
+                        return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+                    }
+                } catch (_) {}
+            }
+            throw new Error(`Failed to fetch clean HTML from ${targetUrl}`);
+        }
 
-        let results;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        async function evalAxeCleanDom(targetUrl) {
+            const cleanHtml = await fetchCleanHtml(targetUrl);
+            await page.goto('about:blank');
+            await page.setContent(cleanHtml, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            await page.evaluate(axeSource);
+            return await page.evaluate(async () => await axe.run(document, { iframes: false }));
+        }
+
+        function withTimeout(promise, ms) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Evaluation timed out')), ms))
+            ]);
+        }
+
+        const currentUrl = page.url() || '';
+        if (!navResult.success || currentUrl.startsWith('chrome-error://') || currentUrl === 'about:blank') {
             try {
-                await page.evaluate(axeSource);
-                results = await page.evaluate(async () => await axe.run());
-                break;
+                results = await evalAxeCleanDom(fallbackUrl || url);
+            } catch (cleanErr) {
+                throw new Error(`Failed to navigate to ${url}: ${navResult.error ? navResult.error.message : 'Page unreachable'}`);
+            }
+        } else {
+            await new Promise(r => setTimeout(r, 1500));
+            try {
+                results = await withTimeout(evalAxeDirect(), 8000);
             } catch (err) {
-                if (err && err.message && (err.message.includes('destroyed') || err.message.includes('Target closed')) && attempt < 2) {
-                    await new Promise(r => setTimeout(r, 2000));
-                    continue;
+                try {
+                    const targetU = page.url() && !page.url().startsWith('about:') ? page.url() : url;
+                    results = await evalAxeCleanDom(targetU);
+                } catch (fallbackErr) {
+                    throw err;
                 }
-                throw err;
             }
         }
 
         // Extract clean page-level metadata for rules that target html/document
-        const pageTitle = await page.title();
-        const titleTagHtml = await page.evaluate(() => {
-            const el = document.querySelector('title');
-            return el ? el.outerHTML : '';
-        });
-        const langAttr = await page.evaluate(() => {
-            const htmlEl = document.querySelector('html');
-            return htmlEl ? htmlEl.getAttribute('lang') || '' : '';
-        });
+        let pageTitle = '';
+        let titleTagHtml = '';
+        let langAttr = '';
+        try {
+            pageTitle = await page.title();
+            titleTagHtml = await page.evaluate(() => {
+                const el = document.querySelector('title');
+                return el ? el.outerHTML : '';
+            });
+            langAttr = await page.evaluate(() => {
+                const htmlEl = document.querySelector('html');
+                return htmlEl ? htmlEl.getAttribute('lang') || '' : '';
+            });
+        } catch (_) {}
 
         // Build impact summary from violations
         const impactSummary = { critical: 0, serious: 0, moderate: 0, minor: 0 };

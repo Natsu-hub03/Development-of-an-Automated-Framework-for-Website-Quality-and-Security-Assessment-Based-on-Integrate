@@ -29,7 +29,8 @@ BACKEND_DIR = BASE_DIR / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from services.standards.report_builder import build_standards_report
+from services.standards.report_builder import build_standards_report, build_unreachable_standards_report
+from services.reachability import check_url
 
 try:
     import openpyxl
@@ -50,7 +51,7 @@ os.environ["TMPDIR"] = str(F_TEMP)
 tempfile.tempdir = str(F_TEMP)
 
 SCANNER_DIR = BASE_DIR / "scanner"
-DEFAULT_CSV_PATH = Path(r"c:\Users\tokyo\OneDrive\Desktop\urls.csv")
+DEFAULT_CSV_PATH = BASE_DIR / "urls.csv" if (BASE_DIR / "urls.csv").exists() else Path(r"c:\Users\tokyo\OneDrive\Desktop\urls.csv")
 DEFAULT_EXCEL_PATH = BASE_DIR / "standards_score_results.xlsx"
 
 
@@ -133,55 +134,87 @@ def scan_via_backend_api(url: str, backend_url: str = "http://localhost:8000", t
     return None, round(time.perf_counter() - t0, 2)
 
 
-def evaluate_website_standards(url: str, timeouts: dict[str, int], backend_url: str = "http://localhost:8000") -> dict:
+def evaluate_website_standards(url: str, timeouts: dict[str, int]) -> dict:
     """
-    Evaluates website standards.
-    Prefers Backend API (same as Web UI) to guarantee 100% identical results including ZAP.
-    Falls back to local scanners if backend is unavailable.
+    Evaluates website standards directly using Local Standalone scanners.
+    Pre-validates reachability: dead/closed sites get 0 across all standards.
+    Reachable sites are scanned using their resolved effective URL (HTTP/HTTPS).
     """
-    # ── 1. Try Backend API first (100% identical to Web UI) ─────────────────
-    report, api_dur = scan_via_backend_api(url, backend_url, timeout=timeouts.get("total", 180))
-    wall_total = api_dur
-    source_mode = "Backend API (Web Match)"
+    # ── 1. Pre-validation: ตรวจสอบว่าเว็บไซต์เปิดอยู่จริงหรือไม่ ─────────────
+    reach = check_url(url)
+    if not reach.get("reachable"):
+        err_msg = reach.get("error_type") or reach.get("error") or "เว็บไซต์ปิดตัวหรือไม่สามารถเข้าถึงได้"
+        print(f"    [!] เว็บไซต์ปิดตัว/เข้าถึงไม่ได้ ({err_msg}) -> กำหนด 0 คะแนนทุกมาตรฐาน")
+        return {
+            "overall_score": 0,
+            "grade": "ต้องปรับปรุง",
+            "passed": 0,
+            "failed": 71,
+            "warning": 0,
+            "wcag_score": 0,
+            "wcag_passed": 0,
+            "wcag_failed": 37,
+            "wcag_total": 37,
+            "wcag_warning": 0,
+            "cwv_score": 0,
+            "cwv_passed": 0,
+            "cwv_failed": 9,
+            "cwv_total": 9,
+            "cwv_warning": 0,
+            "ncsa_score": 0,
+            "ncsa_passed": 0,
+            "ncsa_failed": 11,
+            "ncsa_total": 11,
+            "ncsa_warning": 0,
+            "owasp_score": 0,
+            "owasp_passed": 0,
+            "owasp_failed": 14,
+            "owasp_total": 14,
+            "owasp_warning": 0,
+            "scan_duration": round(reach.get("duration", 0.0), 2),
+            "status": f"Dead/Closed ({err_msg})",
+            "source_mode": "Reachability Pre-Check",
+            "errors": err_msg,
+        }
 
-    scan_raw = {}
-    if not report:
-        source_mode = "Local Standalone"
-        wall_start = time.perf_counter()
-        futures = {}
+    effective_url = reach.get("final_url") or url
+    source_mode = "Local Standalone"
+    wall_start = time.perf_counter()
+    futures = {}
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures["axe"] = executor.submit(
-                run_node_scanner, "axe_scan.js", url, timeouts.get("axe", 90)
-            )
-            futures["lighthouse"] = executor.submit(
-                run_node_scanner, "lighthouse_scan.js", url, timeouts.get("lighthouse", 130)
-            )
-            futures["headers"] = executor.submit(
-                run_node_scanner, "headers_scan.js", url, timeouts.get("headers", 45)
-            )
-            futures["wappalyzer"] = executor.submit(
-                run_node_scanner, "wappalyzer_scan.js", url, timeouts.get("wappalyzer", 100)
-            )
-
-            for key, future in futures.items():
-                try:
-                    data, dur, err = future.result()
-                    scan_raw[key] = {"data": data, "duration": dur, "error": err}
-                except Exception as e:
-                    scan_raw[key] = {"data": None, "duration": 0.0, "error": str(e)}
-
-        wall_total = round(time.perf_counter() - wall_start, 2)
-
-        # Build standards report using local engine
-        report = build_standards_report(
-            url=url,
-            axe_data=scan_raw["axe"]["data"],
-            lighthouse_data=scan_raw["lighthouse"]["data"],
-            headers_data=scan_raw["headers"]["data"],
-            wappalyzer_data=scan_raw["wappalyzer"]["data"],
-            zap_data={},
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures["axe"] = executor.submit(
+            run_node_scanner, "axe_scan.js", effective_url, timeouts.get("axe", 90)
         )
+        futures["lighthouse"] = executor.submit(
+            run_node_scanner, "lighthouse_scan.js", effective_url, timeouts.get("lighthouse", 130)
+        )
+        futures["headers"] = executor.submit(
+            run_node_scanner, "headers_scan.js", effective_url, timeouts.get("headers", 45)
+        )
+        futures["wappalyzer"] = executor.submit(
+            run_node_scanner, "wappalyzer_scan.js", effective_url, timeouts.get("wappalyzer", 100)
+        )
+
+        scan_raw = {}
+        for key, future in futures.items():
+            try:
+                data, dur, err = future.result()
+                scan_raw[key] = {"data": data, "duration": dur, "error": err}
+            except Exception as e:
+                scan_raw[key] = {"data": None, "duration": 0.0, "error": str(e)}
+
+    wall_total = round(time.perf_counter() - wall_start, 2)
+
+    # Build standards report using local engine
+    report = build_standards_report(
+        url=effective_url,
+        axe_data=scan_raw["axe"]["data"],
+        lighthouse_data=scan_raw["lighthouse"]["data"],
+        headers_data=scan_raw["headers"]["data"],
+        wappalyzer_data=scan_raw["wappalyzer"]["data"],
+        zap_data={},
+    )
 
     summary = report.get("summary", {})
     total_items = summary.get("total", 71)
@@ -362,7 +395,7 @@ def append_score_to_excel(filepath: Path, row_meta: dict):
         row_meta["url"],                                # B: URL
         row_meta["category"],                           # C: Category
         f"=F{r}/71",                                    # D: คะแนนรวม (%)
-        f'=IF(D{r}>=0.9,"ดีเยี่ยม",IF(D{r}>=0.7,"ดี",IF(D{r}>=0.5,"พอใช้","ต้องปรับปรุง")))', # E: ระดับ (Grade)
+        f'=IF(F{r}=0,"เว็บปิด",IF(D{r}>=0.9,"ดีมาก",IF(D{r}>=0.7,"ดี",IF(D{r}>=0.5,"พอใช้","ต้องปรับปรุง"))))', # E: ระดับ (Grade)
         f"=J{r}+N{r}+R{r}+V{r}",                        # F: รวม ผ่าน
         f"=K{r}+O{r}+S{r}+W{r}",                        # G: รวม ไม่ผ่าน
         f"=L{r}+P{r}+T{r}+X{r}",                        # H: รวม เตือน
@@ -443,18 +476,21 @@ def append_score_to_excel(filepath: Path, row_meta: dict):
 
         if col_idx == 5:
             grade_str = row_meta.get("grade", "")
-            if grade_str == "ดีเยี่ยม":
+            if grade_str in ["ดีมาก", "ดีเยี่ยม"]:
                 cell.fill = PatternFill(start_color="D4EDDA", fill_type="solid")
                 cell.font = Font(name="Segoe UI", size=10, bold=True, color="155724")
             elif grade_str == "ดี":
-                cell.fill = PatternFill(start_color="D1E7DD", fill_type="solid")
-                cell.font = Font(name="Segoe UI", size=10, bold=True, color="0F5132")
+                cell.fill = PatternFill(start_color="CFE2FF", fill_type="solid")
+                cell.font = Font(name="Segoe UI", size=10, bold=True, color="084298")
             elif grade_str == "พอใช้":
-                cell.fill = PatternFill(start_color="FFF3CD", fill_type="solid")
-                cell.font = Font(name="Segoe UI", size=10, bold=True, color="856404")
-            else:
+                cell.fill = PatternFill(start_color="CFF4FC", fill_type="solid")
+                cell.font = Font(name="Segoe UI", size=10, bold=True, color="055160")
+            elif grade_str == "เว็บปิด":
                 cell.fill = PatternFill(start_color="F8D7DA", fill_type="solid")
                 cell.font = Font(name="Segoe UI", size=10, bold=True, color="842029")
+            else:
+                cell.fill = PatternFill(start_color="FFF3CD", fill_type="solid")
+                cell.font = Font(name="Segoe UI", size=10, bold=True, color="664D03")
 
         # Status Badge
         if col_idx == 26:
@@ -594,9 +630,24 @@ def update_summary_dashboard(wb: openpyxl.Workbook):
 
 # ── CSV Reader ───────────────────────────────────────────────────────────────
 def load_urls_from_csv(csv_path: Path) -> list[tuple[str, str]]:
-    """Load URLs and categories from CSV."""
+    """Load URLs and categories from CSV, with automatic fallback to Excel if CSV not found."""
     if not csv_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+        local_csv = BASE_DIR / "urls.csv"
+        if local_csv.exists():
+            csv_path = local_csv
+        elif DEFAULT_EXCEL_PATH.exists():
+            print(f"[*] Notice: CSV not found at '{csv_path}', loading URLs from '{DEFAULT_EXCEL_PATH.name}' instead...")
+            items = []
+            wb = openpyxl.load_workbook(DEFAULT_EXCEL_PATH, data_only=True)
+            ws = wb.active
+            for r in range(2, ws.max_row + 1):
+                url = ws.cell(row=r, column=2).value
+                cat = ws.cell(row=r, column=3).value or "-"
+                if url and (str(url).startswith("http://") or str(url).startswith("https://")):
+                    items.append((str(url).strip(), str(cat).strip()))
+            return items
+        else:
+            raise FileNotFoundError(f"Neither CSV nor Excel found: {csv_path}")
 
     items = []
     with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -620,6 +671,7 @@ def main():
     parser.add_argument("--limit", type=int, default=0, help="Limit number of URLs to scan (0 = all)")
     parser.add_argument("--start", type=int, default=1, help="Start from row index (1-based)")
     parser.add_argument("--timeout", type=int, default=90, help="Default scanner timeout in seconds")
+    parser.add_argument("--fresh", action="store_true", help="Start a clean fresh scan from scratch (backs up existing Excel)")
     args = parser.parse_args()
 
     csv_path = Path(args.csv)
@@ -636,8 +688,19 @@ def main():
     total_in_csv = len(urls_with_cat)
     print(f"[*] Total URLs found  : {total_in_csv}")
 
+    if args.fresh and excel_path.exists():
+        backup_name = f"standards_score_results_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        backup_path = excel_path.parent / backup_name
+        try:
+            import shutil
+            shutil.copy2(excel_path, backup_path)
+            excel_path.unlink()
+            print(f"[*] Fresh mode: สำรองไฟล์เดิมไว้ที่ -> {backup_name}")
+        except Exception as e:
+            print(f"[!] Warning on backup/unlink: {e}")
+
     init_excel_file(excel_path)
-    scanned_urls = get_existing_scanned_urls(excel_path)
+    scanned_urls = get_existing_scanned_urls(excel_path) if not args.fresh else set()
     print(f"[*] Already scanned   : {len(scanned_urls)} URLs (will resume automatically)")
 
     start_idx = max(1, args.start) - 1
@@ -662,6 +725,7 @@ def main():
             print(f"[{idx}/{len(items_to_process)}] Skipping (already scanned): {url}")
             continue
 
+        print(f"\n[{idx}/{len(items_to_process)}] Assessing: {url} ({category}) ...")
         try:
             res = evaluate_website_standards(url, timeouts)
         except Exception as e:
@@ -694,7 +758,7 @@ def main():
                 "errors": str(e),
             }
 
-        row_num = len(get_existing_scanned_urls(excel_path)) + 1
+        row_num = len(scanned_urls) + 1
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         row_meta = {
@@ -724,7 +788,8 @@ def main():
         }
 
         append_score_to_excel(excel_path, row_meta)
-        scanned_urls.add(url.strip().lower())
+        scanned_urls.add(clean_u)
+        count += 1
 
         print(f"    ├─ คะแนนรวมตามมาตรฐาน : {res['overall_score']}% ({res['grade']}) | ผ่าน: {res['passed']}/71 ตก: {res['failed']} เตือน: {res['warning']}")
         print(f"    ├─ WCAG 2.1            : {res['wcag_score']}% ({res['wcag_passed']}/{res['wcag_total']} ผ่าน, {res['wcag_failed']} ตก)")

@@ -18,7 +18,7 @@ import urllib.error
 import urllib.parse
 from typing import Optional
 
-TIMEOUT = 12
+TIMEOUT = 18
 
 REAL_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -60,12 +60,24 @@ PARKED_PATTERNS = [
     b"<title>iis windows server</title>",
     b"buy this domain",
     b"this domain is for sale",
+    b"domain for sale",
+    b"the domain name",
+    b"purchase this domain",
     b"parkingcrew.net",
     b"sedo.com",
     b"sedoparking",
     b"namebright - coming soon",
     b"cmp_cdid",
     b"<title>namebright",
+    b"hugedomains.com",
+    b"hugedomains",
+    b"domains.atom.com",
+    b"atom.com/lpd/name/",
+    b"forsale.godaddy.com",
+    b"godaddy.com/forsale",
+    b"by plesk",
+    b"log in to plesk",
+    b"<title>redirecting...</title>",
 ]
 
 # ข้อความ Error บน Title ที่แสดงว่าหน้าเว็บพังหรือไม่มีอยู่
@@ -176,11 +188,11 @@ def check_url(url: str) -> dict:
         urls_to_try.append(clean_u)
         urls_to_try.append(clean_u.replace("https://", "http://", 1))
     elif clean_u.startswith("http://"):
-        urls_to_try.append(clean_u.replace("http://", "https://", 1))
         urls_to_try.append(clean_u)
+        urls_to_try.append(clean_u.replace("http://", "https://", 1))
     else:
-        urls_to_try.append("https://" + clean_u)
         urls_to_try.append("http://" + clean_u)
+        urls_to_try.append("https://" + clean_u)
 
     start = time.perf_counter()
     last_error = ""
@@ -300,6 +312,9 @@ def check_url(url: str) -> dict:
                 # 7. เช็คหน้าจอขาว (White screen) / ไม่มีเนื้อหา (ขนาดน้อยกว่า 120 bytes และไม่มีคำสั่งดีดหน้า)
                 clean_len = len(body.strip())
                 if clean_len < 120 and not redirect_target:
+                    if current_url == urls_to_try[0] and len(urls_to_try) > 1:
+                        last_error = "ขนาดเนื้อหาว่างเปล่าบน HTTP"
+                        break
                     return {
                         "reachable": False,
                         "status_code": status,

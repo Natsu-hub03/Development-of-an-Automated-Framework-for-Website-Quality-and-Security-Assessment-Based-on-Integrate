@@ -201,11 +201,11 @@ def check_url(url: str) -> dict:
         urls_to_try.append(clean_u)
         urls_to_try.append(clean_u.replace("https://", "http://", 1))
     elif clean_u.startswith("http://"):
-        urls_to_try.append(clean_u.replace("http://", "https://", 1))
         urls_to_try.append(clean_u)
+        urls_to_try.append(clean_u.replace("http://", "https://", 1))
     else:
-        urls_to_try.append("https://" + clean_u)
         urls_to_try.append("http://" + clean_u)
+        urls_to_try.append("https://" + clean_u)
 
     start = time.perf_counter()
     last_error = ""
